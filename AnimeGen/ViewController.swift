@@ -178,7 +178,9 @@ class ViewController: UIViewController {
                 }
             case .denied, .restricted:
                 print("Photo library access denied or restricted.")
-                self.showPhotoLibraryAccessDeniedAlert()
+                DispatchQueue.main.async {
+                    self.showPhotoLibraryAccessDeniedAlert()
+                }
             case .notDetermined:
                 print("Photo library access not determined.")
             @unknown default:
