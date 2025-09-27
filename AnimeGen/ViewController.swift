@@ -163,10 +163,12 @@ class ViewController: UIViewController {
     }
     
     @IBAction func heartButtonTapped(_ sender: UIButton) {
-        guard let image = imageView.image else {
-            print("No image available to save")
+        guard currentImageIndex >= 0, currentImageIndex < imageHistory.count else {
+            print("No valid image URL available")
             return
         }
+        
+        let currentURL = imageHistory[currentImageIndex]
         
         PHPhotoLibrary.requestAuthorization { [weak self] status in
             guard let self = self else { return }
@@ -174,7 +176,7 @@ class ViewController: UIViewController {
             switch status {
             case .authorized, .limited:
                 DispatchQueue.main.async {
-                    UIImageWriteToSavedPhotosAlbum(image, self, #selector(self.imageCompletion(_:didFinishSavingWithError:contextInfo:)), nil)
+                    self.downloadAndSaveImage(from: currentURL)
                 }
             case .denied, .restricted:
                 print("Photo library access denied or restricted.")
@@ -185,6 +187,90 @@ class ViewController: UIViewController {
                 print("Photo library access not determined.")
             @unknown default:
                 print("Unknown authorization status")
+            }
+        }
+    }
+    
+    func downloadAndSaveImage(from url: URL) {
+        let task = URLSession.shared.dataTask(with: url) { [weak self] (data, response, error) in
+            guard let self = self else { return }
+            
+            if let error = error {
+                print("Error downloading image: \(error.localizedDescription)")
+                DispatchQueue.main.async {
+                    self.showAlert(message: "Error downloading image: \(error.localizedDescription)")
+                }
+                return
+            }
+            
+            guard let data = data else {
+                print("No data received")
+                DispatchQueue.main.async {
+                    self.showAlert(message: "No data received")
+                }
+                return
+            }
+            let isGIF = self.isGIFImage(data: data, url: url)
+            
+            if isGIF {
+                self.saveGIFToPhotoLibrary(data: data)
+            } else {
+                if let image = UIImage(data: data) {
+                    UIImageWriteToSavedPhotosAlbum(image, self, #selector(self.imageCompletion(_:didFinishSavingWithError:contextInfo:)), nil)
+                } else {
+                    DispatchQueue.main.async {
+                        self.showAlert(message: "Failed to create image from data")
+                    }
+                }
+            }
+        }
+        
+        task.resume()
+    }
+    
+    func isGIFImage(data: Data, url: URL) -> Bool {
+        if url.pathExtension.lowercased() == "gif" {
+            return true
+        }
+        if data.count >= 6 {
+            let gifSignature = data.prefix(6)
+            if gifSignature == Data([0x47, 0x49, 0x46, 0x38, 0x37, 0x61]) || // GIF87a
+               gifSignature == Data([0x47, 0x49, 0x46, 0x38, 0x39, 0x61]) { // GIF89a
+                return true
+            }
+        }
+        
+        return false
+    }
+    
+    func saveGIFToPhotoLibrary(data: Data) {
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("temp_gif_\(UUID().uuidString).gif")
+        
+        do {
+            try data.write(to: tempURL)
+            
+            PHPhotoLibrary.shared().performChanges({
+                let request = PHAssetCreationRequest.forAsset()
+                request.addResource(with: .photo, fileURL: tempURL, options: nil)
+            }) { [weak self] success, error in
+                DispatchQueue.main.async {
+                    try? FileManager.default.removeItem(at: tempURL)
+                    
+                    if success {
+                        print("GIF saved to photo library successfully!")
+                        self?.showAlert(message: "GIF saved to photo library successfully!")
+                    } else if let error = error {
+                        print("Error saving GIF: \(error.localizedDescription)")
+                        self?.showAlert(message: "Error saving GIF: \(error.localizedDescription)")
+                    } else {
+                        self?.showAlert(message: "Failed to save GIF")
+                    }
+                }
+            }
+        } catch {
+            print("Error writing GIF to temporary file: \(error.localizedDescription)")
+            DispatchQueue.main.async {
+                self.showAlert(message: "Error writing GIF to temporary file: \(error.localizedDescription)")
             }
         }
     }
