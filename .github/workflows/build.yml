@@ -8,6 +8,9 @@ on:
       - 'v*'
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     name: Build iOS IPA
@@ -28,11 +31,16 @@ jobs:
         ./ipabuild.sh 2>&1 | tee build_output.log
       shell: bash
       
-    - name: Print failure log
+    - name: Commit error log on failure
       if: failure()
       run: |
-        echo "=== EXACT COMPILER ERRORS: ==="
-        grep -E "(: error:|fatal error:)" build_output.log -B 2 -A 5 || tail -n 200 build_output.log || true
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        echo "=== COMPILER ERRORS ===" > compile_error.txt
+        grep -E "(: error:|fatal error:)" build_output.log -B 2 -A 5 >> compile_error.txt || tail -n 200 build_output.log >> compile_error.txt
+        git add compile_error.txt
+        git commit -m "ci: capture compiler error [skip ci]" || true
+        git push origin main || true
       shell: bash
 
     - name: Upload Build Log
