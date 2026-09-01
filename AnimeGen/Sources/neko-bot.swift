@@ -11,10 +11,21 @@ struct NekoBotResponse: Decodable {
 }
 
 enum NekoBotAPI {
-    static let categories = ["neko", "kemonomimi", "coffee", "food"]
+    static let portraitCategories = ["neko", "kemonomimi"]
+    static let actionCategories = ["coffee", "food"]
     
-    static func fetch() async throws -> AnimeArtItem {
-        let category = categories.randomElement() ?? "neko"
+    static func fetch(orientation: OrientationMode = .any) async throws -> AnimeArtItem {
+        let category: String
+        switch orientation {
+        case .vertical:
+            category = portraitCategories.randomElement() ?? "neko"
+        case .horizontal:
+            category = actionCategories.randomElement() ?? "food"
+        case .any:
+            let all = portraitCategories + actionCategories
+            category = all.randomElement() ?? "neko"
+        }
+        
         guard let url = URL(string: "https://nekobot.xyz/api/image?type=\(category)") else {
             throw URLError(.badURL)
         }

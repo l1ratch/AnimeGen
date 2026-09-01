@@ -11,14 +11,25 @@ struct PurrResponse: Decodable {
 }
 
 enum PurrAPI {
-    static let categories = [
-        "background/img", "eevee/img", "holo/img", "kitsune/img", "neko/img", 
-        "okami/img", "senko/img", "shiro/img", "dance/gif", "hug/gif", 
-        "kiss/gif", "pat/gif", "smile/gif", "cuddle/gif", "fluff/gif"
+    static let portraitCategories = [
+        "background/img", "waifu/img", "neko/img", "senko/img", "shiro/img", "holo/img", "kitsune/img", "okami/img", "eevee/img"
+    ]
+    static let actionCategories = [
+        "dance/gif", "hug/gif", "kiss/gif", "pat/gif", "smile/gif", "cuddle/gif", "fluff/gif"
     ]
     
-    static func fetch() async throws -> AnimeArtItem {
-        let category = categories.randomElement() ?? "neko/img"
+    static func fetch(orientation: OrientationMode = .any) async throws -> AnimeArtItem {
+        let category: String
+        switch orientation {
+        case .vertical:
+            category = portraitCategories.randomElement() ?? "background/img"
+        case .horizontal:
+            category = actionCategories.randomElement() ?? "hug/gif"
+        case .any:
+            let all = portraitCategories + actionCategories
+            category = all.randomElement() ?? "neko/img"
+        }
+        
         guard let url = URL(string: "https://api.purrbot.site/v2/img/sfw/\(category)") else {
             throw URLError(.badURL)
         }

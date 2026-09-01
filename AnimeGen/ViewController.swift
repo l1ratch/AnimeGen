@@ -81,7 +81,7 @@ public enum ImageSource: String, CaseIterable, Identifiable, Codable {
     }
 }
 
-public enum OrientationMode: String, CaseIterable, Identifiable {
+public enum OrientationMode: String, CaseIterable, Identifiable, Codable {
     case vertical = "vertical"
     case any = "any"
     case horizontal = "horizontal"
@@ -90,9 +90,17 @@ public enum OrientationMode: String, CaseIterable, Identifiable {
     
     public var title: String {
         switch self {
-        case .vertical: return "Вертикальные"
-        case .any: return "Любой формат"
-        case .horizontal: return "Горизонтальные"
+        case .vertical: return "Вертикальные (9:16)"
+        case .any: return "Любой формат (Mix)"
+        case .horizontal: return "Горизонтальные (16:9)"
+        }
+    }
+    
+    public var shortTitle: String {
+        switch self {
+        case .vertical: return "9:16"
+        case .any: return "Mix"
+        case .horizontal: return "16:9"
         }
     }
     
@@ -105,16 +113,44 @@ public enum OrientationMode: String, CaseIterable, Identifiable {
     }
 }
 
+public enum ImageScaleMode: String, CaseIterable, Identifiable, Codable {
+    case fill = "fill"
+    case fit = "fit"
+    
+    public var id: String { rawValue }
+    
+    public var title: String {
+        switch self {
+        case .fill: return "Заполнение"
+        case .fit: return "Целиком"
+        }
+    }
+    
+    public var iconName: String {
+        switch self {
+        case .fill: return "arrow.up.left.and.arrow.down.right"
+        case .fit: return "arrow.down.right.and.arrow.up.left"
+        }
+    }
+}
+
 public struct CustomSourceItem: Identifiable, Codable, Equatable {
     public var id = UUID()
     public var name: String
     public var endpointURL: String
     public var jsonKeyPath: String
     public var isEnabled: Bool = true
+    
+    public init(name: String, endpointURL: String, jsonKeyPath: String, isEnabled: Bool = true) {
+        self.name = name
+        self.endpointURL = endpointURL
+        self.jsonKeyPath = jsonKeyPath
+        self.isEnabled = isEnabled
+    }
 }
 
-public struct AnimeArtItem: Identifiable, Equatable {
-    public let id = UUID()
+public struct AnimeArtItem: Identifiable, Equatable, Codable {
+    public let id: UUID
     public let imageURL: URL
     public let source: ImageSource
     public let category: String
@@ -135,6 +171,7 @@ public struct AnimeArtItem: Identifiable, Equatable {
         tags: [String] = [],
         isGIF: Bool = false
     ) {
+        self.id = UUID()
         self.imageURL = imageURL
         self.source = source
         self.category = category
@@ -189,7 +226,7 @@ public class DebugLogger: ObservableObject {
     public var allLogsFormatted: String {
         let device = UIDevice.current
         var text = "=== AnimeGen Debug Log ===\n"
-        text += "App Version: 3.1.0-beta.4 (Build 5)\n"
+        text += "App Version: 3.1.0-beta.5 (Build 6)\n"
         text += "iOS: \(device.systemName) \(device.systemVersion)\n"
         text += "Device: \(device.model)\n"
         text += "Total Logs: \(logs.count)\n"
@@ -216,13 +253,12 @@ public class AnimeGenViewModel: ObservableObject {
     @Published public var favorites: [AnimeArtItem] = []
     @Published public var historyIndex: Int = -1
     @Published public var selectedSource: ImageSource = .nekosBest
-    @Published public var orientationMode: OrientationMode = .any
+    @Published public var orientationMode: OrientationMode = .vertical
+    @Published public var scaleMode: ImageScaleMode = .fill
     @Published public var disabledSources: Set<String> = []
     @Published public var customSources: [CustomSourceItem] = []
     
-    @Published public var proxyHost: String = ""
-    @Published public var proxyPort: String = ""
-    @Published public var isProxyEnabled: Bool = false
+    @Published public var proxyConfig: ProxyConfig = AppNetworkManager.currentProxy
     
     @Published public var isLoading: Bool = false
     @Published public var errorMessage: String? = nil
@@ -247,10 +283,16 @@ public class AnimeGenViewModel: ObservableObject {
             self.selectedSource = source
         }
         
-        // Load orientation preference
+        // Load orientation preference (default to vertical for phones!)
         if let savedMode = UserDefaults.standard.string(forKey: "orientationMode"),
            let mode = OrientationMode(rawValue: savedMode) {
             self.orientationMode = mode
+        }
+        
+        // Load scale mode (Fill vs Fit)
+        if let savedScale = UserDefaults.standard.string(forKey: "imageScaleMode"),
+           let scale = ImageScaleMode(rawValue: savedScale) {
+            self.scaleMode = scale
         }
         
         // Load disabled sources
@@ -258,10 +300,19 @@ public class AnimeGenViewModel: ObservableObject {
             self.disabledSources = Set(disabled)
         }
         
+        // Load saved custom sources
+        if let customData = UserDefaults.standard.data(forKey: "custom_sources_v1"),
+           let decoded = try? JSONDecoder().decode([CustomSourceItem].self, from: customData) {
+            self.customSources = decoded
+        }
+        
+        // Load persistent favorites
+        loadFavorites()
+        
         // Configure Kingfisher
         KingfisherManager.shared.downloader.downloadTimeout = 6.0
         
-        DebugLogger.shared.log(tag: "App", message: "AnimeGen v3.1.0-beta.4 initialized with source: \(selectedSource.displayName)")
+        DebugLogger.shared.log(tag: "App", message: "AnimeGen v3.1.0-beta.5 initialized with source: \(selectedSource.displayName)")
         loadNewImage()
     }
     
@@ -280,6 +331,13 @@ public class AnimeGenViewModel: ObservableObject {
         loadNewImage()
     }
     
+    public func toggleScaleMode() {
+        scaleMode = (scaleMode == .fill) ? .fit : .fill
+        UserDefaults.standard.set(scaleMode.rawValue, forKey: "imageScaleMode")
+        impactFeedback.impactOccurred()
+        showToast(scaleMode == .fill ? "Режим: Заполнение (Fill)" : "Режим: Целиком (Fit)")
+    }
+    
     public func toggleSourceEnabled(_ source: ImageSource) {
         if disabledSources.contains(source.rawValue) {
             disabledSources.remove(source.rawValue)
@@ -291,6 +349,18 @@ public class AnimeGenViewModel: ObservableObject {
     
     public func isSourceEnabled(_ source: ImageSource) -> Bool {
         !disabledSources.contains(source.rawValue)
+    }
+    
+    public func saveCustomSources() {
+        if let encoded = try? JSONEncoder().encode(customSources) {
+            UserDefaults.standard.set(encoded, forKey: "custom_sources_v1")
+        }
+    }
+    
+    public func saveProxySettings() {
+        AppNetworkManager.saveProxy(proxyConfig)
+        showToast("Настройки прокси сохранены! 🌐")
+        DebugLogger.shared.log(tag: "Proxy", message: "Proxy updated: \(proxyConfig.isEnabled ? "Enabled (\(proxyConfig.host):\(proxyConfig.port))" : "Disabled")")
     }
     
     public func loadNewImage(targetSource: ImageSource? = nil) {
@@ -316,25 +386,25 @@ public class AnimeGenViewModel: ObservableObject {
                 let item: AnimeArtItem
                 switch actualSource {
                 case .nekosBest:
-                    item = try await NekosBestAPI.fetch()
+                    item = try await NekosBestAPI.fetch(orientation: self.orientationMode)
                 case .picRe:
-                    item = try await PicReAPI.fetch()
+                    item = try await PicReAPI.fetch(orientation: self.orientationMode)
                 case .nekoBot:
-                    item = try await NekoBotAPI.fetch()
+                    item = try await NekoBotAPI.fetch(orientation: self.orientationMode)
                 case .nekosApi:
                     item = try await NekosApiAPI.fetch()
                 case .nekosLife:
-                    item = try await NekosLifeAPI.fetch()
+                    item = try await NekosLifeAPI.fetch(orientation: self.orientationMode)
                 case .nekosMoe:
                     item = try await NekosMoeAPI.fetch()
                 case .purr:
-                    item = try await PurrAPI.fetch()
+                    item = try await PurrAPI.fetch(orientation: self.orientationMode)
                 case .waifupics:
-                    item = try await WaifuPicsAPI.fetch()
+                    item = try await WaifuPicsAPI.fetch(orientation: self.orientationMode)
                 case .waifuIm:
                     item = try await WaifuImAPI.fetch()
                 case .random:
-                    item = try await NekosBestAPI.fetch()
+                    item = try await NekosBestAPI.fetch(orientation: self.orientationMode)
                 }
                 
                 let duration = String(format: "%.2f", (CFAbsoluteTimeGetCurrent() - startTime) * 1000)
@@ -354,6 +424,12 @@ public class AnimeGenViewModel: ObservableObject {
                 self.isLoading = false
             }
         }
+    }
+    
+    public func handleImageDownloadError(for item: AnimeArtItem, error: Error) {
+        DebugLogger.shared.log(tag: "ImageCDN", message: "Failed to download image: \(error.localizedDescription)", isError: true, details: item.imageURL.absoluteString)
+        self.failedSource = item.source
+        self.errorMessage = "Не удалось загрузить изображение с сервера \(item.source.displayName). CDN временно недоступен."
     }
     
     public func goPrevious() {
@@ -377,6 +453,8 @@ public class AnimeGenViewModel: ObservableObject {
         }
     }
     
+    // MARK: - Favorites Management (Persistent)
+    
     public var isFavorite: Bool {
         guard let current = currentItem else { return false }
         return favorites.contains { $0.imageURL == current.imageURL }
@@ -386,11 +464,26 @@ public class AnimeGenViewModel: ObservableObject {
         guard let current = currentItem else { return }
         if let idx = favorites.firstIndex(where: { $0.imageURL == current.imageURL }) {
             favorites.remove(at: idx)
-            showToast("Removed from favorites")
+            saveFavorites()
+            showToast("Удалено из избранного")
         } else {
             favorites.append(current)
+            saveFavorites()
             notificationFeedback.notificationOccurred(.success)
-            showToast("Added to favorites! ❤️")
+            showToast("Добавлено в избранное! ❤️")
+        }
+    }
+    
+    private func saveFavorites() {
+        if let encoded = try? JSONEncoder().encode(favorites) {
+            UserDefaults.standard.set(encoded, forKey: "saved_favorites_v1")
+        }
+    }
+    
+    private func loadFavorites() {
+        if let data = UserDefaults.standard.data(forKey: "saved_favorites_v1"),
+           let decoded = try? JSONDecoder().decode([AnimeArtItem].self, from: data) {
+            self.favorites = decoded
         }
     }
     
@@ -658,10 +751,10 @@ struct ModernContentView: View {
                 HStack(spacing: 4) {
                     Image(systemName: viewModel.orientationMode.iconName)
                         .font(.system(size: 11, weight: .bold))
-                    Text(viewModel.orientationMode == .vertical ? "9:16" : (viewModel.orientationMode == .horizontal ? "16:9" : "Mix"))
+                    Text(viewModel.orientationMode.shortTitle)
                         .font(.system(size: 10, weight: .bold, design: .monospaced))
                 }
-                .padding(.horizontal, 8)
+                .padding(.horizontal, 9)
                 .padding(.vertical, 7)
                 .background(.ultraThinMaterial, in: Capsule())
                 .overlay(
@@ -717,78 +810,107 @@ struct ModernContentView: View {
                 // Apple Liquid Glass Error State
                 liquidGlassErrorView(source: failedSrc)
             } else if let item = viewModel.currentItem {
-                KFImage(item.imageURL)
-                    .placeholder {
-                        VStack(spacing: 10) {
-                            ProgressView()
-                                .scaleEffect(1.2)
-                            Text("Loading HD Art...")
-                                .font(.system(size: 12, weight: .medium, design: .rounded))
-                                .foregroundColor(.secondary)
-                        }
+                Group {
+                    if viewModel.scaleMode == .fill {
+                        KFImage(item.imageURL)
+                            .placeholder { loadingSpinner }
+                            .fade(duration: 0.2)
+                            .onFailure { error in
+                                viewModel.handleImageDownloadError(for: item, error: error)
+                            }
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .clipped()
+                    } else {
+                        KFImage(item.imageURL)
+                            .placeholder { loadingSpinner }
+                            .fade(duration: 0.2)
+                            .onFailure { error in
+                                viewModel.handleImageDownloadError(for: item, error: error)
+                            }
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .padding(4)
                     }
-                    .fade(duration: 0.2)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-                    .padding(4)
-                    .scaleEffect(zoomScale)
-                    .offset(x: dragOffset)
-                    .gesture(
-                        DragGesture()
-                            .onChanged { value in
-                                dragOffset = value.translation.width
-                            }
-                            .onEnded { value in
-                                if value.translation.width < -50 {
-                                    viewModel.goNext()
-                                } else if value.translation.width > 50 {
-                                    viewModel.goPrevious()
-                                }
-                                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                    dragOffset = 0
-                                }
-                            }
-                    )
-                    .gesture(
-                        MagnificationGesture()
-                            .onChanged { scale in
-                                zoomScale = max(1.0, min(scale, 4.0))
-                            }
-                            .onEnded { _ in
-                                withAnimation(.spring()) {
-                                    zoomScale = 1.0
-                                }
-                            }
-                    )
-                    .onTapGesture(count: 2) {
-                        viewModel.toggleFavorite()
-                        showHeartAnimation = true
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-                            showHeartAnimation = false
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                .scaleEffect(zoomScale)
+                .offset(x: dragOffset)
+                .gesture(
+                    DragGesture()
+                        .onChanged { value in
+                            dragOffset = value.translation.width
                         }
+                        .onEnded { value in
+                            if value.translation.width < -50 {
+                                viewModel.goNext()
+                            } else if value.translation.width > 50 {
+                                viewModel.goPrevious()
+                            }
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                dragOffset = 0
+                            }
+                        }
+                )
+                .gesture(
+                    MagnificationGesture()
+                        .onChanged { scale in
+                            zoomScale = max(1.0, min(scale, 4.0))
+                        }
+                        .onEnded { _ in
+                            withAnimation(.spring()) {
+                                zoomScale = 1.0
+                            }
+                        }
+                )
+                .onTapGesture(count: 2) {
+                    viewModel.toggleFavorite()
+                    showHeartAnimation = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                        showHeartAnimation = false
                     }
+                }
                 
-                // Metadata Badges Inside the Card
+                // Metadata Badges & Fill/Fit Mode Switcher inside the Card
                 VStack {
-                    HStack {
+                    HStack(spacing: 6) {
                         Text(item.category)
                             .font(.system(size: 11, weight: .bold, design: .rounded))
                             .padding(.horizontal, 9)
                             .padding(.vertical, 4)
                             .background(.ultraThinMaterial, in: Capsule())
                             .foregroundColor(Color(UIColor.label))
+                            .shadow(color: .black.opacity(0.12), radius: 4, x: 0, y: 2)
                         
                         Spacer()
+                        
+                        // Fill vs Fit Mode Quick Switcher Button
+                        Button(action: {
+                            viewModel.toggleScaleMode()
+                        }) {
+                            HStack(spacing: 3) {
+                                Image(systemName: viewModel.scaleMode.iconName)
+                                    .font(.system(size: 10, weight: .bold))
+                                Text(viewModel.scaleMode.title)
+                                    .font(.system(size: 9, weight: .bold, design: .rounded))
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(.ultraThinMaterial, in: Capsule())
+                            .foregroundColor(Color(UIColor.label))
+                            .shadow(color: .black.opacity(0.12), radius: 4, x: 0, y: 2)
+                        }
                         
                         if item.isGIF {
                             Text("GIF")
                                 .font(.system(size: 9, weight: .black, design: .rounded))
                                 .padding(.horizontal, 7)
-                                .padding(.vertical, 3)
+                                .padding(.vertical, 4)
                                 .background(Color.pink.opacity(0.9), in: Capsule())
                                 .foregroundColor(.white)
+                                .shadow(color: .black.opacity(0.12), radius: 4, x: 0, y: 2)
                         }
                     }
                     .padding(10)
@@ -803,6 +925,7 @@ struct ModernContentView: View {
                                 .padding(.vertical, 4)
                                 .background(.ultraThinMaterial, in: Capsule())
                                 .foregroundColor(.secondary)
+                                .shadow(color: .black.opacity(0.12), radius: 4, x: 0, y: 2)
                             Spacer()
                         }
                         .padding(10)
@@ -820,6 +943,16 @@ struct ModernContentView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+    }
+    
+    private var loadingSpinner: some View {
+        VStack(spacing: 10) {
+            ProgressView()
+                .scaleEffect(1.2)
+            Text("Loading HD Art...")
+                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .foregroundColor(.secondary)
+        }
     }
     
     // MARK: - Liquid Glass Error Card
@@ -1065,8 +1198,8 @@ struct AppMenuSheet: View {
                     }
                 }
                 
-                Section(header: Text("Ориентация артов")) {
-                    Picker("Режим соотношения сторон", selection: $viewModel.orientationMode) {
+                Section(header: Text("Отображение и масштаб")) {
+                    Picker("Ориентация артов", selection: $viewModel.orientationMode) {
                         ForEach(OrientationMode.allCases) { mode in
                             Label(mode.title, systemImage: mode.iconName).tag(mode)
                         }
@@ -1075,6 +1208,16 @@ struct AppMenuSheet: View {
                     .onChange(of: viewModel.orientationMode) { newMode in
                         viewModel.setOrientationMode(newMode)
                     }
+                    
+                    Picker("Масштаб картинки", selection: $viewModel.scaleMode) {
+                        ForEach(ImageScaleMode.allCases) { scale in
+                            Label(scale.title, systemImage: scale.iconName).tag(scale)
+                        }
+                    }
+                    .pickerStyle(.inline)
+                    .onChange(of: viewModel.scaleMode) { newScale in
+                        UserDefaults.standard.set(newScale.rawValue, forKey: "imageScaleMode")
+                    }
                 }
                 
                 Section(header: Text("Настройки источников & Сети")) {
@@ -1082,14 +1225,14 @@ struct AppMenuSheet: View {
                         dismiss()
                         viewModel.showSourceManagerSheet = true
                     }) {
-                        Label("Управление источниками (Кастомные)", systemImage: "slider.horizontal.3")
+                        Label("Управление источниками & Добавление", systemImage: "slider.horizontal.3")
                     }
                     
                     Button(action: {
                         dismiss()
                         viewModel.showProxySheet = true
                     }) {
-                        Label("Настройки Прокси (Proxy)", systemImage: "network")
+                        Label("Настройки Прокси (Proxy + Auth)", systemImage: "network")
                     }
                 }
                 
@@ -1098,7 +1241,7 @@ struct AppMenuSheet: View {
                         dismiss()
                         viewModel.showDebugSheet = true
                     }) {
-                        Label("Консоль отладки & Пинг (v3.1-b5)", systemImage: "ladybug.fill")
+                        Label("Консоль отладки & Пинг (v3.1-b6)", systemImage: "ladybug.fill")
                     }
                     
                     Button(action: {
@@ -1122,7 +1265,7 @@ struct AppMenuSheet: View {
     }
 }
 
-// MARK: - Source Manager Sheet
+// MARK: - Source Manager Sheet with Step-by-Step Instructions
 
 struct SourceManagerSheet: View {
     @ObservedObject var viewModel: AnimeGenViewModel
@@ -1136,6 +1279,28 @@ struct SourceManagerSheet: View {
     var body: some View {
         NavigationView {
             List {
+                Section(header: Text("Инструкция по подключению API")) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("💡 Как добавить свой источник:")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundColor(.pink)
+                        
+                        Text("1. Введите название источника (например: Safebooru или Danbooru).\n2. Укажите URL JSON-эндпоинта, который возвращает картинку.\n3. Укажите JSON-ключ, в котором лежит ссылка на изображение (обычно `url`, `file_url`, `message` или `link`).")
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
+                        
+                        Divider().padding(.vertical, 2)
+                        
+                        Text("Примеры популярных эндпоинтов:")
+                            .font(.system(size: 11, weight: .bold))
+                        
+                        Text("• Safebooru: `https://safebooru.org/index.php?page=dapi&s=post&q=index&json=1&tags=rating:safe+score:>50&limit=1` (ключ: `file_url`)\n• Nekos API: `https://api.nekosapi.com/v4/images/random?rating=safe` (ключ: `url`)")
+                            .font(.system(size: 10, design: .monospaced))
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.vertical, 4)
+                }
+                
                 Section(header: Text("Встроенные источники")) {
                     ForEach(ImageSource.allCases.filter { $0 != .random }) { source in
                         HStack {
@@ -1173,6 +1338,7 @@ struct SourceManagerSheet: View {
                         }
                         .onDelete { indices in
                             viewModel.customSources.remove(atOffsets: indices)
+                            viewModel.saveCustomSources()
                         }
                     }
                     
@@ -1212,6 +1378,7 @@ struct SourceManagerSheet: View {
                                     viewModel.customSources.append(
                                         CustomSourceItem(name: newName, endpointURL: newURL, jsonKeyPath: newKeyPath)
                                     )
+                                    viewModel.saveCustomSources()
                                     showAddSheet = false
                                 }
                             }
@@ -1223,37 +1390,88 @@ struct SourceManagerSheet: View {
     }
 }
 
-// MARK: - Proxy Settings Sheet
+// MARK: - Proxy Settings Sheet with Full Auth
 
 struct ProxySettingsSheet: View {
     @ObservedObject var viewModel: AnimeGenViewModel
     @Environment(\.dismiss) var dismiss
     
+    @State private var proxyHost: String = ""
+    @State private var proxyPort: String = "8080"
+    @State private var isEnabled: Bool = false
+    @State private var isSOCKS: Bool = false
+    @State private var username: String = ""
+    @State private var password: String = ""
+    
     var body: some View {
         NavigationView {
             Form {
-                Section(header: Text("HTTP / SOCKS Прокси")) {
-                    Toggle("Использовать Прокси", isOn: $viewModel.isProxyEnabled)
+                Section(header: Text("Состояние Прокси")) {
+                    Toggle("Включить Прокси", isOn: $isEnabled)
                     
-                    if viewModel.isProxyEnabled {
-                        TextField("Хост / IP (например: 127.0.0.1 или proxy.com)", text: $viewModel.proxyHost)
+                    if isEnabled {
+                        Picker("Протокол", selection: $isSOCKS) {
+                            Text("HTTP / HTTPS").tag(false)
+                            Text("SOCKS5").tag(true)
+                        }
+                        .pickerStyle(.segmented)
+                    }
+                }
+                
+                if isEnabled {
+                    Section(header: Text("Параметры подключения")) {
+                        TextField("Хост / IP (например: 127.0.0.1 или proxy.com)", text: $proxyHost)
                             .autocapitalization(.none)
-                        TextField("Порт (например: 8080)", text: $viewModel.proxyPort)
+                            .disableAutocorrection(true)
+                        
+                        TextField("Порт (например: 8080 или 1080)", text: $proxyPort)
                             .keyboardType(.numberPad)
+                    }
+                    
+                    Section(header: Text("Авторизация (Опционально)")) {
+                        TextField("Логин (Username)", text: $username)
+                            .autocapitalization(.none)
+                            .disableAutocorrection(true)
+                        
+                        SecureField("Пароль (Password)", text: $password)
                     }
                 }
                 
                 Section(header: Text("Информация")) {
-                    Text("Прокси позволяет обходить блокировки и ограничения Cloudflare при подключении к источникам.")
+                    Text("Прокси перенаправляет все API-запросы приложения через удаленный сервер для обхода блокировок и проверок Cloudflare.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
             }
             .navigationTitle("Настройки Прокси")
             .navigationBarTitleDisplayMode(.inline)
+            .onAppear {
+                let current = viewModel.proxyConfig
+                self.isEnabled = current.isEnabled
+                self.proxyHost = current.host
+                self.proxyPort = "\(current.port)"
+                self.isSOCKS = current.isSOCKS
+                self.username = current.username
+                self.password = current.password
+            }
             .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Отмена") { dismiss() }
+                }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Готово") { dismiss() }
+                    Button("Сохранить") {
+                        let portInt = Int(proxyPort) ?? 8080
+                        viewModel.proxyConfig = ProxyConfig(
+                            isEnabled: isEnabled,
+                            host: proxyHost,
+                            port: portInt,
+                            isSOCKS: isSOCKS,
+                            username: username,
+                            password: password
+                        )
+                        viewModel.saveProxySettings()
+                        dismiss()
+                    }
                 }
             }
         }

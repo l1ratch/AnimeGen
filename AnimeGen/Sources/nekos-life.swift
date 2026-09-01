@@ -10,13 +10,21 @@ struct NekosLifeResponse: Decodable {
 }
 
 enum NekosLifeAPI {
-    static let categories = [
-        "neko", "waifu", "hug", "kiss", "pat", "cuddle", 
-        "slap", "poke", "feed", "tickle", "smug", "fox_girl", "wallpaper"
-    ]
+    static let portraitCategories = ["wallpaper", "waifu", "neko", "fox_girl"]
+    static let actionCategories = ["hug", "kiss", "pat", "cuddle", "slap", "poke", "feed", "tickle", "smug"]
     
-    static func fetch() async throws -> AnimeArtItem {
-        let category = categories.randomElement() ?? "neko"
+    static func fetch(orientation: OrientationMode = .any) async throws -> AnimeArtItem {
+        let category: String
+        switch orientation {
+        case .vertical:
+            category = portraitCategories.randomElement() ?? "wallpaper"
+        case .horizontal:
+            category = actionCategories.randomElement() ?? "hug"
+        case .any:
+            let all = portraitCategories + actionCategories
+            category = all.randomElement() ?? "neko"
+        }
+        
         guard let url = URL(string: "https://nekos.life/api/v2/img/\(category)") else {
             throw URLError(.badURL)
         }

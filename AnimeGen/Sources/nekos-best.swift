@@ -16,13 +16,25 @@ struct NekosBestResponse: Decodable {
 }
 
 enum NekosBestAPI {
-    static let categories = [
-        "neko", "waifu", "kitsune", "husbando", "smile", "hug", "pat", 
-        "blush", "wink", "dance", "poke", "happy", "cuddle", "smug"
+    static let portraitCategories = [
+        "neko", "waifu", "kitsune", "husbando"
+    ]
+    static let actionCategories = [
+        "hug", "kiss", "pat", "cuddle", "dance", "smile", "blush", "wink", "poke", "happy", "smug"
     ]
     
-    static func fetch() async throws -> AnimeArtItem {
-        let category = categories.randomElement() ?? "neko"
+    static func fetch(orientation: OrientationMode = .any) async throws -> AnimeArtItem {
+        let category: String
+        switch orientation {
+        case .vertical:
+            category = portraitCategories.randomElement() ?? "waifu"
+        case .horizontal:
+            category = actionCategories.randomElement() ?? "hug"
+        case .any:
+            let all = portraitCategories + actionCategories
+            category = all.randomElement() ?? "neko"
+        }
+        
         guard let url = URL(string: "https://nekos.best/api/v2/\(category)") else {
             throw URLError(.badURL)
         }
