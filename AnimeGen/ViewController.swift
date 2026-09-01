@@ -583,8 +583,6 @@ struct AnimatedGIFView: UIViewRepresentable {
         let view = AnimatedImageView()
         view.contentMode = contentMode
         view.clipsToBounds = true
-        view.autoUpdateRunLoopMode = true
-        view.repeatCount = .infinity
         view.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         view.setContentCompressionResistancePriority(.defaultLow, for: .vertical)
         view.kf.indicatorType = .activity

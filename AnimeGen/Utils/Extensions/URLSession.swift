@@ -35,8 +35,7 @@ public final class AppProxySessionDelegate: NSObject, URLSessionDelegate, URLSes
     public static let shared = AppProxySessionDelegate()
     
     public func urlSession(_ session: URLSession, task: URLSessionTask, didReceive challenge: URLAuthenticationChallenge, completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
-        if challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodHTTPProxy ||
-           challenge.protectionSpace.isProxy {
+        if challenge.protectionSpace.isProxy() {
             let proxy = AppNetworkManager.currentProxy
             if !proxy.username.isEmpty {
                 let credential = URLCredential(user: proxy.username, password: proxy.password, persistence: .forSession)
