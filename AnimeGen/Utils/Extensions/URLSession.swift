@@ -67,12 +67,15 @@ public enum AppNetworkManager {
     public static func syncWithKingfisher() {
         let config = makeConfiguration(for: currentProxy)
         KingfisherManager.shared.downloader.sessionConfiguration = config
+        KingfisherManager.shared.downloader.downloadTimeout = currentProxy.isEnabled ? 20.0 : 10.0
     }
     
     public static func makeConfiguration(for proxy: ProxyConfig) -> URLSessionConfiguration {
         let configuration = URLSessionConfiguration.default
-        configuration.timeoutIntervalForRequest = 8.0
-        configuration.timeoutIntervalForResource = 20.0
+        let isProxy = proxy.isEnabled && !proxy.host.isEmpty && proxy.port > 0
+        configuration.timeoutIntervalForRequest = isProxy ? 20.0 : 10.0
+        configuration.timeoutIntervalForResource = isProxy ? 40.0 : 15.0
+        configuration.waitsForConnectivity = false
         configuration.httpAdditionalHeaders = [
             "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Safari/604.1",
             "Accept": "application/json, image/*, */*"

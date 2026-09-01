@@ -45,57 +45,27 @@ enum WaifuPicsAPI {
             )
         } else {
             let reaction = reactions.randomElement() ?? "hug"
-            // Try OtakuGIFs first
-            if let url = URL(string: "https://api.otakugifs.xyz/gif?reaction=\(reaction)") {
-                do {
-                    var request = URLRequest(url: url)
-                    request.timeoutInterval = 4.0
-                    let (data, response) = try await URLSession.custom.data(for: request)
-                    if let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode),
-                       let decoded = try? JSONDecoder().decode(OtakuGifResponse.self, from: data),
-                       let imageURL = URL(string: decoded.url) {
-                        return AnimeArtItem(
-                            imageURL: imageURL,
-                            source: .waifupics,
-                            category: reaction.capitalized + " GIF",
-                            artistName: nil,
-                            artistURL: nil,
-                            sourceURL: nil,
-                            tags: [reaction, "gif", "animation"],
-                            isGIF: true
-                        )
-                    }
-                } catch {
-                    await DebugLogger.shared.log(tag: "OtakuGIFs", message: "OtakuGIFs proxy fallback -> NekosBest / WaifuPics: \(error.localizedDescription)")
-                }
+            guard let url = URL(string: "https://api.otakugifs.xyz/gif?reaction=\(reaction)") else {
+                throw URLError(.badURL)
             }
-            
-            // Seamless fallback 1: waifu.pics sfw reaction
-            if let url = URL(string: "https://api.waifu.pics/sfw/\(reaction)") {
-                do {
-                    let (data, response) = try await URLSession.custom.data(from: url)
-                    if let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) {
-                        struct WaifuPicsResp: Decodable { let url: String }
-                        if let decoded = try? JSONDecoder().decode(WaifuPicsResp.self, from: data),
-                           let imageURL = URL(string: decoded.url) {
-                            let isGif = decoded.url.lowercased().hasSuffix(".gif")
-                            return AnimeArtItem(
-                                imageURL: imageURL,
-                                source: .waifupics,
-                                category: reaction.capitalized + (isGif ? " GIF" : " Art"),
-                                artistName: nil,
-                                artistURL: nil,
-                                sourceURL: nil,
-                                tags: [reaction, isGif ? "gif" : "anime"],
-                                isGIF: isGif
-                            )
-                        }
-                    }
-                } catch {}
+            let (data, response) = try await URLSession.custom.data(from: url)
+            guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+                throw URLError(.badServerResponse)
             }
-            
-            // Seamless fallback 2: NekosBest reaction
-            return try await NekosBestAPI.fetch(orientation: orientation)
+            let decoded = try JSONDecoder().decode(OtakuGifResponse.self, from: data)
+            guard let imageURL = URL(string: decoded.url) else {
+                throw URLError(.cannotParseResponse)
+            }
+            return AnimeArtItem(
+                imageURL: imageURL,
+                source: .waifupics,
+                category: reaction.capitalized + " GIF",
+                artistName: nil,
+                artistURL: nil,
+                sourceURL: nil,
+                tags: [reaction, "gif", "animation"],
+                isGIF: true
+            )
         }
     }
 }

@@ -367,11 +367,22 @@ public class AnimeGenViewModel: ObservableObject {
     public func confirmAgeVerification() {
         isNSFWEnabled = true
         UserDefaults.standard.set(true, forKey: "is_nsfw_enabled_v1")
+        
+        // Auto-enable all NSFW sources so they don't remain disabled
+        for nsfwSrc in ImageSource.allCases.filter({ $0.isNSFW }) {
+            disabledSources.remove(nsfwSrc.rawValue)
+        }
+        UserDefaults.standard.set(Array(disabledSources), forKey: "disabledSources")
+        
         showToast("Режим 18+ включен 🔥")
         DebugLogger.shared.log(tag: "NSFW", message: "NSFW adult content enabled after 18+ age verification")
     }
     
     public func setSource(_ source: ImageSource) {
+        if source == .waifuIm {
+            showToast("Сервер Waifu.im на тех. обслуживании (Cloudflare) ⚠️")
+            return
+        }
         selectedSource = source
         UserDefaults.standard.set(source.rawValue, forKey: "selectedSource")
         DebugLogger.shared.log(tag: "Source", message: "Selected source: \(source.displayName)")
@@ -394,6 +405,7 @@ public class AnimeGenViewModel: ObservableObject {
     }
     
     public func toggleSourceEnabled(_ source: ImageSource) {
+        if source == .waifuIm { return }
         if disabledSources.contains(source.rawValue) {
             disabledSources.remove(source.rawValue)
         } else {
@@ -403,6 +415,9 @@ public class AnimeGenViewModel: ObservableObject {
     }
     
     public func isSourceEnabled(_ source: ImageSource) -> Bool {
+        if source == .waifuIm {
+            return false
+        }
         if source.isNSFW && !isNSFWEnabled {
             return false
         }
@@ -733,39 +748,6 @@ struct ModernContentView: View {
         }
         .sheet(isPresented: $viewModel.showAppMenuSheet) {
             AppMenuSheet(viewModel: viewModel)
-        }
-        .sheet(isPresented: $viewModel.showHistorySheet) {
-            GallerySheet(
-                title: "Session History",
-                items: viewModel.history,
-                onSelect: { item in
-                    viewModel.currentItem = item
-                    viewModel.errorMessage = nil
-                    viewModel.failedSource = nil
-                    viewModel.showHistorySheet = false
-                }
-            )
-        }
-        .sheet(isPresented: $viewModel.showFavoritesSheet) {
-            GallerySheet(
-                title: "Favorites",
-                items: viewModel.favorites,
-                onSelect: { item in
-                    viewModel.currentItem = item
-                    viewModel.errorMessage = nil
-                    viewModel.failedSource = nil
-                    viewModel.showFavoritesSheet = false
-                }
-            )
-        }
-        .sheet(isPresented: $viewModel.showSourceManagerSheet) {
-            SourceManagerSheet(viewModel: viewModel)
-        }
-        .sheet(isPresented: $viewModel.showProxySheet) {
-            ProxySettingsSheet(viewModel: viewModel)
-        }
-        .sheet(isPresented: $viewModel.showDebugSheet) {
-            DebugConsoleSheet(viewModel: viewModel, logger: debugLogger)
         }
     }
     
@@ -1288,10 +1270,16 @@ struct AppMenuSheet: View {
         NavigationView {
             List {
                 Section(header: Text("Коллекция")) {
-                    Button(action: {
-                        dismiss()
-                        viewModel.showFavoritesSheet = true
-                    }) {
+                    NavigationLink(destination: GalleryView(
+                        title: "Избранное",
+                        items: viewModel.favorites,
+                        onSelect: { item in
+                            viewModel.currentItem = item
+                            viewModel.errorMessage = nil
+                            viewModel.failedSource = nil
+                            dismiss()
+                        }
+                    )) {
                         Label {
                             HStack {
                                 Text("Избранное")
@@ -1305,10 +1293,16 @@ struct AppMenuSheet: View {
                         }
                     }
                     
-                    Button(action: {
-                        dismiss()
-                        viewModel.showHistorySheet = true
-                    }) {
+                    NavigationLink(destination: GalleryView(
+                        title: "История сессии",
+                        items: viewModel.history,
+                        onSelect: { item in
+                            viewModel.currentItem = item
+                            viewModel.errorMessage = nil
+                            viewModel.failedSource = nil
+                            dismiss()
+                        }
+                    )) {
                         Label {
                             HStack {
                                 Text("История сессии")
@@ -1346,17 +1340,11 @@ struct AppMenuSheet: View {
                 }
                 
                 Section(header: Text("Настройки источников & Сети")) {
-                    Button(action: {
-                        dismiss()
-                        viewModel.showSourceManagerSheet = true
-                    }) {
+                    NavigationLink(destination: SourceManagerView(viewModel: viewModel)) {
                         Label("Управление источниками & Добавление", systemImage: "slider.horizontal.3")
                     }
                     
-                    Button(action: {
-                        dismiss()
-                        viewModel.showProxySheet = true
-                    }) {
+                    NavigationLink(destination: ProxySettingsView(viewModel: viewModel)) {
                         Label("Настройки Прокси (Proxy + Auth)", systemImage: "network")
                     }
                 }
@@ -1383,10 +1371,7 @@ struct AppMenuSheet: View {
                 }
                 
                 Section(header: Text("Отладка и сервис")) {
-                    Button(action: {
-                        dismiss()
-                        viewModel.showDebugSheet = true
-                    }) {
+                    NavigationLink(destination: DebugConsoleView(viewModel: viewModel, logger: DebugLogger.shared)) {
                         Label("Консоль отладки & Пинг (v3.1)", systemImage: "ladybug.fill")
                     }
                     
@@ -1419,11 +1404,10 @@ struct AppMenuSheet: View {
     }
 }
 
-// MARK: - Source Manager Sheet with Step-by-Step Instructions
+// MARK: - Source Manager View with Step-by-Step Instructions
 
-struct SourceManagerSheet: View {
+struct SourceManagerView: View {
     @ObservedObject var viewModel: AnimeGenViewModel
-    @Environment(\.dismiss) var dismiss
     
     @State private var showAddSheet = false
     @State private var newName = ""
@@ -1431,39 +1415,92 @@ struct SourceManagerSheet: View {
     @State private var newKeyPath = "url"
     
     var body: some View {
-        NavigationView {
-            List {
-                Section(header: Text("Инструкция по подключению API")) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("💡 Как добавить свой источник:")
-                            .font(.system(size: 13, weight: .bold))
+        List {
+            Section(header: Text("Инструкция по подключению API")) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("💡 Как добавить свой источник:")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(.pink)
+                    
+                    Text("1. Введите название источника (например: Safebooru или Danbooru).\n2. Укажите URL JSON-эндпоинта, который возвращает картинку.\n3. Укажите JSON-ключ, в котором лежит ссылка на изображение (обычно `url`, `file_url`, `message` или `link`).")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                    
+                    Divider().padding(.vertical, 2)
+                    
+                    Text("Примеры популярных эндпоинтов:")
+                        .font(.system(size: 11, weight: .bold))
+                    
+                    Text("• Safebooru: `https://safebooru.org/index.php?page=dapi&s=post&q=index&json=1&tags=rating:safe+score:>50&limit=1` (ключ: `file_url`)\n• Nekos API: `https://api.nekosapi.com/v4/images/random?rating=safe` (ключ: `url`)")
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundColor(.secondary)
+                }
+                .padding(.vertical, 4)
+            }
+            
+            let sfwSources = ImageSource.allCases.filter { $0 != .random && !$0.isNSFW && $0 != .waifuIm }
+            Section(header: Text("Встроенные источники (SFW)")) {
+                ForEach(sfwSources) { source in
+                    HStack {
+                        Image(systemName: source.iconName)
                             .foregroundColor(.pink)
+                            .frame(width: 24)
                         
-                        Text("1. Введите название источника (например: Safebooru или Danbooru).\n2. Укажите URL JSON-эндпоинта, который возвращает картинку.\n3. Укажите JSON-ключ, в котором лежит ссылка на изображение (обычно `url`, `file_url`, `message` или `link`).")
-                            .font(.system(size: 11))
-                            .foregroundColor(.secondary)
+                        VStack(alignment: .leading) {
+                            Text(source.displayName).font(.headline)
+                            Text(source.description).font(.caption).foregroundColor(.secondary)
+                        }
                         
-                        Divider().padding(.vertical, 2)
+                        Spacer()
                         
-                        Text("Примеры популярных эндпоинтов:")
-                            .font(.system(size: 11, weight: .bold))
-                        
-                        Text("• Safebooru: `https://safebooru.org/index.php?page=dapi&s=post&q=index&json=1&tags=rating:safe+score:>50&limit=1` (ключ: `file_url`)\n• Nekos API: `https://api.nekosapi.com/v4/images/random?rating=safe` (ключ: `url`)")
-                            .font(.system(size: 10, design: .monospaced))
-                            .foregroundColor(.secondary)
+                        Toggle("", isOn: Binding(
+                            get: { viewModel.isSourceEnabled(source) },
+                            set: { _ in viewModel.toggleSourceEnabled(source) }
+                        ))
+                        .labelsHidden()
                     }
-                    .padding(.vertical, 4)
                 }
                 
-                Section(header: Text("Встроенные источники")) {
-                    ForEach(ImageSource.allCases.filter { $0 != .random }) { source in
+                // Waifu.im on maintenance
+                HStack {
+                    Image(systemName: "wrench.and.screwdriver.fill")
+                        .foregroundColor(.secondary)
+                        .frame(width: 24)
+                    
+                    VStack(alignment: .leading) {
+                        HStack {
+                            Text("Waifu.im").font(.headline).foregroundColor(.secondary)
+                            Text("Тех. работы ⚠️").font(.caption2.bold()).foregroundColor(.orange)
+                        }
+                        Text("Временно отключен на техобслуживание (Cloudflare)").font(.caption).foregroundColor(.secondary)
+                    }
+                    
+                    Spacer()
+                    
+                    Toggle("", isOn: .constant(false))
+                        .labelsHidden()
+                        .disabled(true)
+                }
+                .opacity(0.6)
+            }
+            
+            if viewModel.isNSFWEnabled {
+                let nsfwSources = ImageSource.allCases.filter { $0 != .random && $0.isNSFW }
+                Section(header: HStack {
+                    Image(systemName: "flame.fill").foregroundColor(.red)
+                    Text("Источники 18+ (NSFW)").foregroundColor(.red).fontWeight(.bold)
+                }) {
+                    ForEach(nsfwSources) { source in
                         HStack {
                             Image(systemName: source.iconName)
-                                .foregroundColor(.pink)
+                                .foregroundColor(.red)
                                 .frame(width: 24)
                             
                             VStack(alignment: .leading) {
-                                Text(source.displayName).font(.headline)
+                                HStack {
+                                    Text(source.displayName).font(.headline)
+                                    Text(source.tag).font(.caption2.bold()).foregroundColor(.red)
+                                }
                                 Text(source.description).font(.caption).foregroundColor(.secondary)
                             }
                             
@@ -1477,64 +1514,59 @@ struct SourceManagerSheet: View {
                         }
                     }
                 }
+            }
+            
+            Section(header: Text("Кастомные JSON API источники")) {
+                if viewModel.customSources.isEmpty {
+                    Text("Нет добавленных источников. Нажмите «Добавить свой», чтобы подключить любой аниме API.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                } else {
+                    ForEach(viewModel.customSources) { custom in
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(custom.name).font(.headline)
+                            Text(custom.endpointURL).font(.caption).foregroundColor(.secondary)
+                        }
+                    }
+                    .onDelete { indices in
+                        viewModel.customSources.remove(atOffsets: indices)
+                        viewModel.saveCustomSources()
+                    }
+                }
                 
-                Section(header: Text("Кастомные JSON API источники")) {
-                    if viewModel.customSources.isEmpty {
-                        Text("Нет добавленных источников. Нажмите «Добавить свой», чтобы подключить любой аниме API.")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    } else {
-                        ForEach(viewModel.customSources) { custom in
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(custom.name).font(.headline)
-                                Text(custom.endpointURL).font(.caption).foregroundColor(.secondary)
-                            }
-                        }
-                        .onDelete { indices in
-                            viewModel.customSources.remove(atOffsets: indices)
-                            viewModel.saveCustomSources()
-                        }
-                    }
-                    
-                    Button(action: { showAddSheet = true }) {
-                        Label("Добавить свой источник (JSON API)", systemImage: "plus.circle.fill")
-                            .foregroundColor(.pink)
-                    }
+                Button(action: { showAddSheet = true }) {
+                    Label("Добавить свой источник (JSON API)", systemImage: "plus.circle.fill")
+                        .foregroundColor(.pink)
                 }
             }
-            .navigationTitle("Управление источниками")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Готово") { dismiss() }
-                }
-            }
-            .sheet(isPresented: $showAddSheet) {
-                NavigationView {
-                    Form {
-                        Section(header: Text("Параметры API")) {
-                            TextField("Название (например: Safebooru)", text: $newName)
-                            TextField("URL (https://.../api/random)", text: $newURL)
-                                .autocapitalization(.none)
-                                .keyboardType(.URL)
-                            TextField("JSON ключ картинки (например: url, file_url)", text: $newKeyPath)
-                                .autocapitalization(.none)
-                        }
+        }
+        .navigationTitle("Управление источниками")
+        .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showAddSheet) {
+            NavigationView {
+                Form {
+                    Section(header: Text("Параметры API")) {
+                        TextField("Название (например: Safebooru)", text: $newName)
+                        TextField("URL (https://.../api/random)", text: $newURL)
+                            .autocapitalization(.none)
+                            .keyboardType(.URL)
+                        TextField("JSON ключ картинки (например: url, file_url)", text: $newKeyPath)
+                            .autocapitalization(.none)
                     }
-                    .navigationTitle("Новый источник")
-                    .toolbar {
-                        ToolbarItem(placement: .cancellationAction) {
-                            Button("Отмена") { showAddSheet = false }
-                        }
-                        ToolbarItem(placement: .confirmationAction) {
-                            Button("Сохранить") {
-                                if !newName.isEmpty && !newURL.isEmpty {
-                                    viewModel.customSources.append(
-                                        CustomSourceItem(name: newName, endpointURL: newURL, jsonKeyPath: newKeyPath)
-                                    )
-                                    viewModel.saveCustomSources()
-                                    showAddSheet = false
-                                }
+                }
+                .navigationTitle("Новый источник")
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Отмена") { showAddSheet = false }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Сохранить") {
+                            if !newName.isEmpty && !newURL.isEmpty {
+                                viewModel.customSources.append(
+                                    CustomSourceItem(name: newName, endpointURL: newURL, jsonKeyPath: newKeyPath)
+                                )
+                                viewModel.saveCustomSources()
+                                showAddSheet = false
                             }
                         }
                     }
@@ -1544,11 +1576,10 @@ struct SourceManagerSheet: View {
     }
 }
 
-// MARK: - Proxy Settings Sheet with Live Diagnostics & Full Auth
+// MARK: - Proxy Settings View with Live Diagnostics & Full Auth
 
-struct ProxySettingsSheet: View {
+struct ProxySettingsView: View {
     @ObservedObject var viewModel: AnimeGenViewModel
-    @Environment(\.dismiss) var dismiss
     
     @State private var proxyHost: String = ""
     @State private var proxyPort: String = "8080"
@@ -1564,120 +1595,121 @@ struct ProxySettingsSheet: View {
     @State private var testIsSuccess: Bool = false
     
     var body: some View {
-        NavigationView {
-            Form {
-                Section(header: Text("Состояние Прокси")) {
-                    Toggle("Включить Прокси", isOn: $isEnabled)
-                    
-                    if isEnabled {
-                        Picker("Протокол", selection: $isSOCKS) {
-                            Text("HTTP / HTTPS").tag(false)
-                            Text("SOCKS5").tag(true)
-                        }
-                        .pickerStyle(.segmented)
-                    }
-                }
+        Form {
+            Section(header: Text("Состояние Прокси")) {
+                Toggle("Включить Прокси", isOn: $isEnabled)
+                    .onChange(of: isEnabled) { _ in saveCurrentProxy() }
                 
                 if isEnabled {
-                    Section(header: Text("Параметры подключения")) {
-                        TextField("Хост / IP (например: 88.216.19.98)", text: $proxyHost)
-                            .autocapitalization(.none)
-                            .disableAutocorrection(true)
-                        
-                        TextField("Порт (например: 19441 или 8080)", text: $proxyPort)
-                            .keyboardType(.numberPad)
+                    Picker("Протокол", selection: $isSOCKS) {
+                        Text("HTTP / HTTPS").tag(false)
+                        Text("SOCKS5").tag(true)
                     }
+                    .pickerStyle(.segmented)
+                    .onChange(of: isSOCKS) { _ in saveCurrentProxy() }
+                }
+            }
+            
+            if isEnabled {
+                Section(header: Text("Параметры подключения")) {
+                    TextField("Хост / IP (например: 88.216.19.98)", text: $proxyHost)
+                        .autocapitalization(.none)
+                        .disableAutocorrection(true)
+                        .onChange(of: proxyHost) { _ in saveCurrentProxy() }
                     
-                    Section(header: Text("Авторизация (Опционально)")) {
-                        TextField("Логин (Username)", text: $username)
-                            .autocapitalization(.none)
-                            .disableAutocorrection(true)
-                        
-                        HStack {
-                            if showPassword {
-                                TextField("Пароль (Password)", text: $password)
-                                    .autocapitalization(.none)
-                                    .disableAutocorrection(true)
-                            } else {
-                                SecureField("Пароль (Password)", text: $password)
-                            }
-                            
-                            Button(action: { showPassword.toggle() }) {
-                                Image(systemName: showPassword ? "eye.slash.fill" : "eye.fill")
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                    }
+                    TextField("Порт (например: 19441 или 8080)", text: $proxyPort)
+                        .keyboardType(.numberPad)
+                        .onChange(of: proxyPort) { _ in saveCurrentProxy() }
+                }
+                
+                Section(header: Text("Авторизация (Опционально)")) {
+                    TextField("Логин (Username)", text: $username)
+                        .autocapitalization(.none)
+                        .disableAutocorrection(true)
+                        .onChange(of: username) { _ in saveCurrentProxy() }
                     
-                    Section(header: Text("Проверка подключения")) {
-                        Button(action: runProxyTest) {
-                            HStack {
-                                if isTesting {
-                                    ProgressView()
-                                        .scaleEffect(0.9)
-                                        .padding(.trailing, 4)
-                                    Text("Проверка соединения...")
-                                } else {
-                                    Image(systemName: "bolt.horizontal.circle.fill")
-                                        .foregroundColor(.pink)
-                                    Text("Проверить прокси (Ping & IP)")
-                                        .fontWeight(.semibold)
-                                }
-                            }
+                    HStack {
+                        if showPassword {
+                            TextField("Пароль (Password)", text: $password)
+                                .autocapitalization(.none)
+                                .disableAutocorrection(true)
+                                .onChange(of: password) { _ in saveCurrentProxy() }
+                        } else {
+                            SecureField("Пароль (Password)", text: $password)
+                                .onChange(of: password) { _ in saveCurrentProxy() }
                         }
-                        .disabled(isTesting || proxyHost.isEmpty)
                         
-                        if let status = testStatus {
-                            HStack(spacing: 8) {
-                                Image(systemName: testIsSuccess ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
-                                    .foregroundColor(testIsSuccess ? .green : .red)
-                                Text(status)
-                                    .font(.system(size: 13, weight: .medium))
-                                    .foregroundColor(testIsSuccess ? .green : .red)
-                            }
-                            .padding(.vertical, 4)
+                        Button(action: { showPassword.toggle() }) {
+                            Image(systemName: showPassword ? "eye.slash.fill" : "eye.fill")
+                                .foregroundColor(.secondary)
                         }
                     }
                 }
                 
-                Section(header: Text("Информация")) {
-                    Text("Прокси перенаправляет все сетевые запросы приложения и загрузку изображений через защищенный сервер.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            }
-            .navigationTitle("Настройки Прокси")
-            .navigationBarTitleDisplayMode(.inline)
-            .onAppear {
-                let current = viewModel.proxyConfig
-                self.isEnabled = current.isEnabled
-                self.proxyHost = current.host
-                self.proxyPort = "\(current.port)"
-                self.isSOCKS = current.isSOCKS
-                self.username = current.username
-                self.password = current.password
-            }
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Отмена") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Сохранить") {
-                        let portInt = Int(proxyPort) ?? 8080
-                        viewModel.proxyConfig = ProxyConfig(
-                            isEnabled: isEnabled,
-                            host: proxyHost.trimmingCharacters(in: .whitespacesAndNewlines),
-                            port: portInt,
-                            isSOCKS: isSOCKS,
-                            username: username.trimmingCharacters(in: .whitespacesAndNewlines),
-                            password: password.trimmingCharacters(in: .whitespacesAndNewlines)
-                        )
-                        viewModel.saveProxySettings()
-                        dismiss()
+                Section(header: Text("Проверка подключения")) {
+                    Button(action: runProxyTest) {
+                        HStack {
+                            if isTesting {
+                                ProgressView()
+                                    .scaleEffect(0.9)
+                                    .padding(.trailing, 4)
+                                Text("Проверка соединения...")
+                            } else {
+                                Image(systemName: "bolt.horizontal.circle.fill")
+                                    .foregroundColor(.pink)
+                                Text("Проверить прокси (Ping & IP)")
+                                    .fontWeight(.semibold)
+                            }
+                        }
+                    }
+                    .disabled(isTesting || proxyHost.isEmpty)
+                    
+                    if let status = testStatus {
+                        HStack(spacing: 8) {
+                            Image(systemName: testIsSuccess ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                                .foregroundColor(testIsSuccess ? .green : .red)
+                            Text(status)
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundColor(testIsSuccess ? .green : .red)
+                        }
+                        .padding(.vertical, 4)
                     }
                 }
             }
+            
+            Section(header: Text("Информация")) {
+                Text("Прокси перенаправляет все сетевые запросы приложения и загрузку изображений через защищенный сервер.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
         }
+        .navigationTitle("Настройки Прокси")
+        .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            let current = viewModel.proxyConfig
+            self.isEnabled = current.isEnabled
+            self.proxyHost = current.host
+            self.proxyPort = "\(current.port)"
+            self.isSOCKS = current.isSOCKS
+            self.username = current.username
+            self.password = current.password
+        }
+        .onDisappear {
+            saveCurrentProxy()
+        }
+    }
+    
+    private func saveCurrentProxy() {
+        let portInt = Int(proxyPort) ?? 8080
+        viewModel.proxyConfig = ProxyConfig(
+            isEnabled: isEnabled,
+            host: proxyHost.trimmingCharacters(in: .whitespacesAndNewlines),
+            port: portInt,
+            isSOCKS: isSOCKS,
+            username: username.trimmingCharacters(in: .whitespacesAndNewlines),
+            password: password.trimmingCharacters(in: .whitespacesAndNewlines)
+        )
+        viewModel.saveProxySettings()
     }
     
     private func runProxyTest() {
@@ -1721,10 +1753,53 @@ struct SourcePickerSheet: View {
     var body: some View {
         NavigationView {
             List {
-                let sfwSources = ImageSource.allCases.filter { !$0.isNSFW && viewModel.isSourceEnabled($0) }
+                let sfwSources = ImageSource.allCases.filter { !$0.isNSFW && $0 != .waifuIm && viewModel.isSourceEnabled($0) }
                 Section(header: Text("Стандартные источники (SFW)").font(.caption)) {
                     ForEach(sfwSources) { source in
                         sourceRow(for: source)
+                    }
+                    
+                    // Waifu.im in maintenance
+                    Button(action: {
+                        viewModel.showToast("Сервер Waifu.im на тех. обслуживании (Cloudflare защита) ⚠️")
+                    }) {
+                        HStack(spacing: 14) {
+                            ZStack {
+                                Circle()
+                                    .fill(Color.gray.opacity(0.12))
+                                    .frame(width: 38, height: 38)
+                                Image(systemName: "wrench.and.screwdriver.fill")
+                                    .font(.system(size: 15, weight: .bold))
+                                    .foregroundColor(.secondary)
+                            }
+                            
+                            VStack(alignment: .leading, spacing: 3) {
+                                HStack {
+                                    Text("Waifu.im")
+                                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                                        .foregroundColor(.secondary)
+                                    
+                                    Text("Тех. работы ⚠️")
+                                        .font(.system(size: 9, weight: .bold, design: .rounded))
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .background(Color.orange.opacity(0.15), in: Capsule())
+                                        .foregroundColor(.orange)
+                                }
+                                
+                                Text("Временно отключен на техобслуживание (Cloudflare)")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.secondary)
+                            }
+                            
+                            Spacer()
+                            
+                            Image(systemName: "lock.fill")
+                                .font(.system(size: 14))
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.vertical, 4)
+                        .opacity(0.65)
                     }
                 }
                 
@@ -1798,13 +1873,12 @@ struct SourcePickerSheet: View {
     }
 }
 
-// MARK: - Gallery & Favorites Sheet
+// MARK: - Gallery & Favorites View
 
-struct GallerySheet: View {
+struct GalleryView: View {
     let title: String
     let items: [AnimeArtItem]
     let onSelect: (AnimeArtItem) -> Void
-    @Environment(\.dismiss) var dismiss
     
     private let columns = [
         GridItem(.flexible(), spacing: 10),
@@ -1812,69 +1886,62 @@ struct GallerySheet: View {
     ]
     
     var body: some View {
-        NavigationView {
-            Group {
-                if items.isEmpty {
-                    VStack(spacing: 12) {
-                        Image(systemName: "photo.on.rectangle.angled")
-                            .font(.system(size: 48))
-                            .foregroundColor(.secondary)
-                        Text("Пока нет сохраненных артов")
-                            .font(.system(size: 16, weight: .medium, design: .rounded))
-                            .foregroundColor(.secondary)
-                    }
-                } else {
-                    ScrollView {
-                        LazyVGrid(columns: columns, spacing: 10) {
-                            ForEach(items.reversed()) { item in
-                                Button(action: {
-                                    onSelect(item)
-                                }) {
-                                    KFImage(item.imageURL)
-                                        .resizable()
-                                        .aspectRatio(contentMode: .fill)
-                                        .frame(height: 180)
-                                        .clipped()
-                                        .cornerRadius(14)
-                                        .overlay(
-                                            VStack {
+        Group {
+            if items.isEmpty {
+                VStack(spacing: 12) {
+                    Image(systemName: "photo.on.rectangle.angled")
+                        .font(.system(size: 48))
+                        .foregroundColor(.secondary)
+                    Text("Пока нет сохраненных артов")
+                        .font(.system(size: 16, weight: .medium, design: .rounded))
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ScrollView {
+                    LazyVGrid(columns: columns, spacing: 10) {
+                        ForEach(items.reversed()) { item in
+                            Button(action: {
+                                onSelect(item)
+                            }) {
+                                KFImage(item.imageURL)
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
+                                    .frame(height: 180)
+                                    .clipped()
+                                    .cornerRadius(14)
+                                    .overlay(
+                                        VStack {
+                                            Spacer()
+                                            HStack {
+                                                Text(item.source.displayName)
+                                                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                                                    .padding(.horizontal, 6)
+                                                    .padding(.vertical, 3)
+                                                    .background(.ultraThinMaterial, in: Capsule())
+                                                    .foregroundColor(Color(UIColor.label))
                                                 Spacer()
-                                                HStack {
-                                                    Text(item.source.displayName)
-                                                        .font(.system(size: 10, weight: .bold, design: .rounded))
-                                                        .padding(.horizontal, 6)
-                                                        .padding(.vertical, 3)
-                                                        .background(.ultraThinMaterial, in: Capsule())
-                                                        .foregroundColor(Color(UIColor.label))
-                                                    Spacer()
-                                                }
-                                                .padding(6)
                                             }
-                                        )
-                                }
+                                            .padding(6)
+                                        }
+                                    )
                             }
                         }
-                        .padding(12)
                     }
-                }
-            }
-            .navigationTitle(title)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Закрыть") { dismiss() }
+                    .padding(14)
                 }
             }
         }
+        .navigationTitle(title)
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
-// MARK: - Hidden Debug Console Sheet with Pastebin Log Sharing
+// MARK: - Hidden Debug Console View with Pastebin Log Sharing
 
-struct DebugConsoleSheet: View {
+struct DebugConsoleView: View {
     @ObservedObject var viewModel: AnimeGenViewModel
     @ObservedObject var logger: DebugLogger
-    @Environment(\.dismiss) var dismiss
     
     @State private var pingResults: [String: String] = [:]
     @State private var isPinging: Bool = false
@@ -1889,165 +1956,158 @@ struct DebugConsoleSheet: View {
     }
     
     var body: some View {
-        NavigationView {
-            VStack(spacing: 0) {
-                // Quick Action Bar
-                VStack(spacing: 8) {
-                    HStack(spacing: 8) {
-                        Button(action: pingAllSources) {
-                            HStack(spacing: 4) {
-                                Image(systemName: isPinging ? "waveform.path.ecg" : "bolt.horizontal.fill")
-                                Text(isPinging ? "Тест..." : "Тест API")
+        VStack(spacing: 0) {
+            // Quick Action Bar
+            VStack(spacing: 8) {
+                HStack(spacing: 8) {
+                    Button(action: pingAllSources) {
+                        HStack(spacing: 4) {
+                            Image(systemName: isPinging ? "waveform.path.ecg" : "bolt.horizontal.fill")
+                            Text(isPinging ? "Тест..." : "Тест API")
+                        }
+                        .font(.system(size: 11, weight: .bold))
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 6)
+                        .background(Color.blue.opacity(0.15), in: Capsule())
+                        .foregroundColor(.blue)
+                    }
+                    .disabled(isPinging)
+                    
+                    Button(action: shareLogsViaPastebin) {
+                        HStack(spacing: 4) {
+                            if isSharingPastebin {
+                                ProgressView().scaleEffect(0.7)
+                            } else {
+                                Image(systemName: "square.and.arrow.up.fill")
                             }
-                            .font(.system(size: 11, weight: .bold))
-                            .padding(.horizontal, 9)
-                            .padding(.vertical, 6)
-                            .background(Color.blue.opacity(0.15), in: Capsule())
-                            .foregroundColor(.blue)
+                            Text(isSharingPastebin ? "Отправка..." : "Поделиться (Pastebin)")
                         }
-                        .disabled(isPinging)
-                        
-                        Button(action: shareLogsViaPastebin) {
-                            HStack(spacing: 4) {
-                                if isSharingPastebin {
-                                    ProgressView().scaleEffect(0.7)
-                                } else {
-                                    Image(systemName: "square.and.arrow.up.fill")
-                                }
-                                Text(isSharingPastebin ? "Отправка..." : "Поделиться (Pastebin)")
-                            }
-                            .font(.system(size: 11, weight: .bold))
-                            .padding(.horizontal, 9)
-                            .padding(.vertical, 6)
-                            .background(Color.pink.opacity(0.15), in: Capsule())
-                            .foregroundColor(.pink)
-                        }
-                        .disabled(isSharingPastebin)
-                        
-                        Spacer()
-                        
-                        Button(action: {
-                            UIPasteboard.general.string = logger.allLogsFormatted
-                            viewModel.showToast("Логи скопированы! 📋")
-                        }) {
-                            Image(systemName: "doc.on.doc.fill")
-                                .font(.system(size: 12))
-                                .padding(7)
-                                .background(Color.green.opacity(0.15), in: Circle())
-                                .foregroundColor(.green)
-                        }
-                        
-                        Button(action: { viewModel.clearCache() }) {
-                            Image(systemName: "trash.fill")
-                                .font(.system(size: 12))
-                                .padding(7)
-                                .background(Color.orange.opacity(0.15), in: Circle())
-                                .foregroundColor(.orange)
-                        }
-                        
-                        Button(action: { logger.clear() }) {
-                            Image(systemName: "xmark.bin.fill")
-                                .font(.system(size: 12))
-                                .padding(7)
-                                .background(Color.red.opacity(0.15), in: Circle())
-                                .foregroundColor(.red)
-                        }
+                        .font(.system(size: 11, weight: .bold))
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 6)
+                        .background(Color.pink.opacity(0.15), in: Capsule())
+                        .foregroundColor(.pink)
+                    }
+                    .disabled(isSharingPastebin)
+                    
+                    Spacer()
+                    
+                    Button(action: {
+                        UIPasteboard.general.string = logger.allLogsFormatted
+                        viewModel.showToast("Логи скопированы! 📋")
+                    }) {
+                        Image(systemName: "doc.on.doc.fill")
+                            .font(.system(size: 12))
+                            .padding(7)
+                            .background(Color.green.opacity(0.15), in: Circle())
+                            .foregroundColor(.green)
                     }
                     
-                    Toggle(isOn: $filterErrorsOnly) {
-                        Text("Показывать только ошибки")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(.secondary)
+                    Button(action: { viewModel.clearCache() }) {
+                        Image(systemName: "trash.fill")
+                            .font(.system(size: 12))
+                            .padding(7)
+                            .background(Color.orange.opacity(0.15), in: Circle())
+                            .foregroundColor(.orange)
+                    }
+                    
+                    Button(action: { logger.clear() }) {
+                        Image(systemName: "xmark.bin.fill")
+                            .font(.system(size: 12))
+                            .padding(7)
+                            .background(Color.red.opacity(0.15), in: Circle())
+                            .foregroundColor(.red)
+                    }
+                }
+                
+                Toggle(isOn: $filterErrorsOnly) {
+                    Text("Показывать только ошибки")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.secondary)
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(Color(UIColor.secondarySystemBackground))
+            
+            // Ping Results List
+            if !pingResults.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Статус источников:")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(.secondary)
+                    
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 6) {
+                            ForEach(Array(pingResults.keys.sorted()), id: \.self) { key in
+                                let val = pingResults[key] ?? ""
+                                HStack(spacing: 4) {
+                                    Text(key).font(.system(size: 10, weight: .bold))
+                                    Text(val).font(.system(size: 10, design: .monospaced))
+                                }
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(val.contains("❌") ? Color.red.opacity(0.15) : Color.green.opacity(0.15), in: Capsule())
+                                .foregroundColor(val.contains("❌") ? .red : .green)
+                            }
+                        }
                     }
                 }
                 .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .background(Color(UIColor.secondarySystemBackground))
-                
-                // Ping Results List
-                if !pingResults.isEmpty {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Статус источников:")
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundColor(.secondary)
-                        
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 6) {
-                                ForEach(Array(pingResults.keys.sorted()), id: \.self) { key in
-                                    let val = pingResults[key] ?? ""
-                                    HStack(spacing: 4) {
-                                        Text(key).font(.system(size: 10, weight: .bold))
-                                        Text(val).font(.system(size: 10, design: .monospaced))
-                                    }
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 4)
-                                    .background(val.contains("❌") ? Color.red.opacity(0.15) : Color.green.opacity(0.15), in: Capsule())
-                                    .foregroundColor(val.contains("❌") ? .red : .green)
-                                }
-                            }
-                        }
-                    }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 6)
-                    .background(Color(UIColor.tertiarySystemBackground))
-                }
-                
-                // Real-time Logs List
-                if filteredLogs.isEmpty {
-                    VStack(spacing: 8) {
-                        Spacer()
-                        Image(systemName: "terminal")
-                            .font(.system(size: 36))
-                            .foregroundColor(.secondary)
-                        Text("Нет записанных логов")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(.secondary)
-                        Spacer()
-                    }
-                } else {
-                    List {
-                        ForEach(filteredLogs.reversed()) { entry in
-                            VStack(alignment: .leading, spacing: 4) {
-                                HStack {
-                                    Text(entry.timeString)
-                                        .font(.system(size: 10, weight: .bold, design: .monospaced))
-                                        .foregroundColor(.secondary)
-                                    
-                                    Text(entry.tag)
-                                        .font(.system(size: 10, weight: .black, design: .rounded))
-                                        .padding(.horizontal, 6)
-                                        .padding(.vertical, 2)
-                                        .background(entry.isError ? Color.red.opacity(0.2) : Color.blue.opacity(0.15), in: Capsule())
-                                        .foregroundColor(entry.isError ? .red : .blue)
-                                    
-                                    Spacer()
-                                }
-                                
-                                Text(entry.message)
-                                    .font(.system(size: 12, weight: .medium, design: .monospaced))
-                                    .foregroundColor(entry.isError ? .red : Color(UIColor.label))
-                                
-                                if let details = entry.details, !details.isEmpty {
-                                    Text(details)
-                                        .font(.system(size: 10, design: .monospaced))
-                                        .foregroundColor(.secondary)
-                                        .lineLimit(3)
-                                }
-                            }
-                            .padding(.vertical, 2)
-                        }
-                    }
-                    .listStyle(.plain)
-                }
+                .padding(.vertical, 6)
+                .background(Color(UIColor.tertiarySystemBackground))
             }
-            .navigationTitle("Консоль отладки")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Закрыть") { dismiss() }
+            
+            // Real-time Logs List
+            if filteredLogs.isEmpty {
+                VStack(spacing: 8) {
+                    Spacer()
+                    Image(systemName: "terminal")
+                        .font(.system(size: 36))
+                        .foregroundColor(.secondary)
+                    Text("Нет записанных логов")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.secondary)
+                    Spacer()
                 }
+            } else {
+                List {
+                    ForEach(filteredLogs.reversed()) { entry in
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text(entry.timeString)
+                                    .font(.system(size: 10, weight: .bold, design: .monospaced))
+                                    .foregroundColor(.secondary)
+                                
+                                Text(entry.tag)
+                                    .font(.system(size: 10, weight: .black, design: .rounded))
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(entry.isError ? Color.red.opacity(0.2) : Color.blue.opacity(0.15), in: Capsule())
+                                    .foregroundColor(entry.isError ? .red : .blue)
+                                
+                                Spacer()
+                            }
+                            
+                            Text(entry.message)
+                                .font(.system(size: 12, weight: .medium, design: .monospaced))
+                                .foregroundColor(entry.isError ? .red : Color(UIColor.label))
+                            
+                            if let details = entry.details, !details.isEmpty {
+                                Text(details)
+                                    .font(.system(size: 10, design: .monospaced))
+                                    .foregroundColor(.secondary)
+                                    .lineLimit(3)
+                            }
+                        }
+                        .padding(.vertical, 2)
+                    }
+                }
+                .listStyle(.plain)
             }
         }
+        .navigationTitle("Консоль отладки")
+        .navigationBarTitleDisplayMode(.inline)
     }
     
     private func shareLogsViaPastebin() {
