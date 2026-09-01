@@ -28,29 +28,27 @@ enum WaifuImAPI {
             throw URLError(.badURL)
         }
         
-        do {
-            let (data, response) = try await URLSession.custom.data(from: url)
-            if let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) {
-                let decoded = try JSONDecoder().decode(WaifuImResponse.self, from: data)
-                if let first = decoded.images.first, let imageURL = URL(string: first.url) {
-                    return AnimeArtItem(
-                        imageURL: imageURL,
-                        source: .waifuIm,
-                        category: "Waifu",
-                        artistName: first.artist?.name,
-                        artistURL: first.artist?.pixiv.flatMap(URL.init(string:)) ?? first.artist?.twitter.flatMap(URL.init(string:)),
-                        sourceURL: imageURL,
-                        tags: ["waifu", "waifu.im"],
-                        isGIF: imageURL.pathExtension.lowercased() == "gif"
-                    )
-                }
-            }
-        } catch {
-            // Fallback gracefully to NekosBest
+        let (data, response) = try await URLSession.custom.data(from: url)
+        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+            let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
+            throw NSError(domain: "WaifuImAPI", code: statusCode, userInfo: [NSLocalizedDescriptionKey: "HTTP \(statusCode)"])
         }
         
-        // Graceful fallback to NekosBest
-        return try await NekosBestAPI.fetch()
+        let decoded = try JSONDecoder().decode(WaifuImResponse.self, from: data)
+        guard let first = decoded.images.first, let imageURL = URL(string: first.url) else {
+            throw URLError(.cannotParseResponse)
+        }
+        
+        return AnimeArtItem(
+            imageURL: imageURL,
+            source: .waifuIm,
+            category: "Waifu",
+            artistName: first.artist?.name,
+            artistURL: first.artist?.pixiv.flatMap(URL.init(string:)) ?? first.artist?.twitter.flatMap(URL.init(string:)),
+            sourceURL: imageURL,
+            tags: ["waifu", "waifu.im"],
+            isGIF: imageURL.pathExtension.lowercased() == "gif"
+        )
     }
 }
 

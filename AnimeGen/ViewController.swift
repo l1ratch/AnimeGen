@@ -25,7 +25,7 @@ public enum ImageSource: String, CaseIterable, Identifiable {
     
     public var id: String { rawValue }
     
-    var displayName: String {
+    public var displayName: String {
         switch self {
         case .nekosBest: return "Nekos Best"
         case .picRe: return "Pic.re HD"
@@ -40,7 +40,7 @@ public enum ImageSource: String, CaseIterable, Identifiable {
         }
     }
     
-    var iconName: String {
+    public var iconName: String {
         switch self {
         case .nekosBest: return "sparkles"
         case .picRe: return "photo.artframe"
@@ -55,7 +55,7 @@ public enum ImageSource: String, CaseIterable, Identifiable {
         }
     }
     
-    var description: String {
+    public var description: String {
         switch self {
         case .nekosBest: return "High-res anime characters & actions"
         case .picRe: return "High quality Pixiv anime illustrations"
@@ -70,7 +70,7 @@ public enum ImageSource: String, CaseIterable, Identifiable {
         }
     }
     
-    var tag: String {
+    public var tag: String {
         switch self {
         case .waifupics: return "GIF"
         case .picRe: return "HD"
@@ -119,6 +119,62 @@ public struct AnimeArtItem: Identifiable, Equatable {
     }
 }
 
+// MARK: - Debug Logger
+
+public struct DebugLogEntry: Identifiable {
+    public let id = UUID()
+    public let timestamp = Date()
+    public let tag: String
+    public let message: String
+    public let isError: Bool
+    public let details: String?
+    
+    public var timeString: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm:ss.SSS"
+        return formatter.string(from: timestamp)
+    }
+}
+
+@MainActor
+public class DebugLogger: ObservableObject {
+    public static let shared = DebugLogger()
+    
+    @Published public var logs: [DebugLogEntry] = []
+    
+    public func log(tag: String, message: String, isError: Bool = false, details: String? = nil) {
+        let entry = DebugLogEntry(tag: tag, message: message, isError: isError, details: details)
+        logs.append(entry)
+        if logs.count > 250 {
+            logs.removeFirst(50)
+        }
+    }
+    
+    public func clear() {
+        logs.removeAll()
+    }
+    
+    public var allLogsFormatted: String {
+        let device = UIDevice.current
+        var text = "=== AnimeGen Debug Log ===\n"
+        text += "App Version: 3.1.0-beta.2 (Build 3)\n"
+        text += "iOS: \(device.systemName) \(device.systemVersion)\n"
+        text += "Device: \(device.model)\n"
+        text += "Total Logs: \(logs.count)\n"
+        text += "===========================\n\n"
+        
+        let logsText = logs.map { entry in
+            var logLine = "[\(entry.timeString)] [\(entry.tag)] \(entry.isError ? "❌ " : "ℹ️ ")\(entry.message)"
+            if let details = entry.details, !details.isEmpty {
+                logLine += "\n  Details: \(details)"
+            }
+            return logLine
+        }.joined(separator: "\n\n")
+        
+        return text + logsText
+    }
+}
+
 // MARK: - ViewModel
 
 @MainActor
@@ -130,11 +186,13 @@ public class AnimeGenViewModel: ObservableObject {
     @Published public var selectedSource: ImageSource = .nekosBest
     @Published public var isLoading: Bool = false
     @Published public var errorMessage: String? = nil
+    @Published public var failedSource: ImageSource? = nil
     @Published public var toastMessage: String? = nil
     
     @Published public var showSourceSheet: Bool = false
     @Published public var showHistorySheet: Bool = false
     @Published public var showFavoritesSheet: Bool = false
+    @Published public var showDebugSheet: Bool = false
     
     private let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
     private let notificationFeedback = UINotificationFeedbackGenerator()
@@ -144,12 +202,14 @@ public class AnimeGenViewModel: ObservableObject {
            let source = ImageSource(rawValue: savedSource) {
             self.selectedSource = source
         }
+        DebugLogger.shared.log(tag: "App", message: "AnimeGen initialized with source: \(selectedSource.displayName)")
         loadNewImage()
     }
     
     public func setSource(_ source: ImageSource) {
         selectedSource = source
         UserDefaults.standard.set(source.rawValue, forKey: "selectedSource")
+        DebugLogger.shared.log(tag: "Source", message: "User selected source: \(source.displayName)")
         showToast("Switched to \(source.displayName)")
         loadNewImage()
     }
@@ -166,7 +226,11 @@ public class AnimeGenViewModel: ObservableObject {
         
         isLoading = true
         errorMessage = nil
+        failedSource = nil
         impactFeedback.prepare()
+        
+        let startTime = CFAbsoluteTimeGetCurrent()
+        DebugLogger.shared.log(tag: "Fetch", message: "Requesting art from \(actualSource.displayName)...")
         
         Task {
             do {
@@ -194,36 +258,31 @@ public class AnimeGenViewModel: ObservableObject {
                     item = try await NekosBestAPI.fetch()
                 }
                 
+                let duration = String(format: "%.2f", (CFAbsoluteTimeGetCurrent() - startTime) * 1000)
+                DebugLogger.shared.log(tag: "Fetch", message: "Received \(item.category) from \(actualSource.displayName) in \(duration)ms", isError: false, details: item.imageURL.absoluteString)
+                
                 self.currentItem = item
                 self.history.append(item)
                 self.historyIndex = self.history.count - 1
                 self.isLoading = false
-                self.impactFeedback.impactOccurred()
             } catch {
-                // Resilient automatic fallback
-                do {
-                    let fallbackItem = try await NekosBestAPI.fetch()
-                    self.currentItem = fallbackItem
-                    self.history.append(fallbackItem)
-                    self.historyIndex = self.history.count - 1
-                    self.isLoading = false
-                    self.impactFeedback.impactOccurred()
-                } catch {
-                    self.isLoading = false
-                    self.errorMessage = "Failed to load art. Tap to retry."
-                    self.showToast("Connection issue. Please retry.")
-                }
+                let duration = String(format: "%.2f", (CFAbsoluteTimeGetCurrent() - startTime) * 1000)
+                let errDesc = error.localizedDescription
+                DebugLogger.shared.log(tag: "Fetch", message: "Failed \(actualSource.displayName) after \(duration)ms: \(errDesc)", isError: true, details: "\(error)")
+                
+                self.failedSource = actualSource
+                self.errorMessage = "Сервер \(actualSource.displayName) временно недоступен или отклонил запрос."
+                self.isLoading = false
             }
         }
     }
     
     public func goPrevious() {
-        guard historyIndex > 0 else {
-            showToast("Beginning of history")
-            return
-        }
+        guard historyIndex > 0 else { return }
         historyIndex -= 1
         currentItem = history[historyIndex]
+        errorMessage = nil
+        failedSource = nil
         impactFeedback.impactOccurred()
     }
     
@@ -231,6 +290,8 @@ public class AnimeGenViewModel: ObservableObject {
         if historyIndex < history.count - 1 {
             historyIndex += 1
             currentItem = history[historyIndex]
+            errorMessage = nil
+            failedSource = nil
             impactFeedback.impactOccurred()
         } else {
             loadNewImage()
@@ -327,17 +388,31 @@ public class AnimeGenViewModel: ObservableObject {
                 self.toastMessage = nil
             }
         }
-    // MARK: - Modern SwiftUI UI
+    }
+    
+    public func clearCache() {
+        ImageCache.default.clearMemoryCache()
+        ImageCache.default.clearDiskCache {
+            DispatchQueue.main.async {
+                self.showToast("Image cache cleared! 🧹")
+                DebugLogger.shared.log(tag: "Cache", message: "Disk and memory image cache cleared")
+            }
+        }
+    }
+}
+
+// MARK: - Modern SwiftUI UI
 
 struct ModernContentView: View {
     @StateObject private var viewModel = AnimeGenViewModel()
+    @StateObject private var debugLogger = DebugLogger.shared
     @State private var dragOffset: CGFloat = 0
     @State private var zoomScale: CGFloat = 1.0
     @State private var showHeartAnimation: Bool = false
     
     var body: some View {
         ZStack {
-            // Ambient dynamic background blur (only this layer extends behind status/home bars)
+            // Ambient dynamic background blur
             ambientBackground
                 .ignoresSafeArea()
             
@@ -390,6 +465,8 @@ struct ModernContentView: View {
                 items: viewModel.history,
                 onSelect: { item in
                     viewModel.currentItem = item
+                    viewModel.errorMessage = nil
+                    viewModel.failedSource = nil
                     viewModel.showHistorySheet = false
                 }
             )
@@ -400,9 +477,14 @@ struct ModernContentView: View {
                 items: viewModel.favorites,
                 onSelect: { item in
                     viewModel.currentItem = item
+                    viewModel.errorMessage = nil
+                    viewModel.failedSource = nil
                     viewModel.showFavoritesSheet = false
                 }
             )
+        }
+        .sheet(isPresented: $viewModel.showDebugSheet) {
+            DebugConsoleSheet(viewModel: viewModel, logger: debugLogger)
         }
     }
     
@@ -459,13 +541,21 @@ struct ModernContentView: View {
             
             Spacer()
             
-            // Build Beta Badge
-            Text("v3.1-b2")
-                .font(.system(size: 10, weight: .bold, design: .monospaced))
-                .padding(.horizontal, 6)
-                .padding(.vertical, 3)
-                .background(Color.purple.opacity(0.15), in: Capsule())
+            // Build Beta Badge (Tap opens Debug Console)
+            Button(action: {
+                viewModel.showDebugSheet = true
+            }) {
+                HStack(spacing: 3) {
+                    Image(systemName: "ladybug.fill")
+                        .font(.system(size: 9))
+                    Text("b3")
+                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                }
+                .padding(.horizontal, 7)
+                .padding(.vertical, 4)
+                .background(Color.purple.opacity(0.18), in: Capsule())
                 .foregroundColor(.purple)
+            }
             
             // Favorites & History Compact Pills
             HStack(spacing: 6) {
@@ -528,7 +618,10 @@ struct ModernContentView: View {
                 )
                 .shadow(color: Color.black.opacity(0.15), radius: 15, x: 0, y: 6)
             
-            if let item = viewModel.currentItem {
+            if let _ = viewModel.errorMessage, let failedSrc = viewModel.failedSource {
+                // Apple Liquid Glass Error State
+                liquidGlassErrorView(source: failedSrc)
+            } else if let item = viewModel.currentItem {
                 KFImage(item.imageURL)
                     .placeholder {
                         VStack(spacing: 8) {
@@ -581,7 +674,7 @@ struct ModernContentView: View {
                         }
                     }
                 
-                // Metadata Badges (Top & Bottom of Card)
+                // Metadata Badges
                 VStack {
                     HStack {
                         Text(item.category)
@@ -627,25 +720,91 @@ struct ModernContentView: View {
                         .font(.system(size: 13, weight: .medium, design: .rounded))
                         .foregroundColor(.secondary)
                 }
-            } else if let error = viewModel.errorMessage {
-                VStack(spacing: 10) {
-                    Image(systemName: "exclamationmark.circle.fill")
-                        .font(.system(size: 32))
-                        .foregroundColor(.orange)
-                    Text(error)
-                        .font(.system(size: 13, weight: .medium, design: .rounded))
-                        .foregroundColor(.secondary)
-                    Button("Retry") {
-                        viewModel.loadNewImage()
-                    }
-                    .font(.system(size: 13, weight: .semibold))
-                    .buttonStyle(.borderedProminent)
-                    .tint(.pink)
-                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .clipped()
+    }
+    
+    // MARK: - Liquid Glass Error Card
+    private func liquidGlassErrorView(source: ImageSource) -> some View {
+        VStack(spacing: 16) {
+            ZStack {
+                Circle()
+                    .fill(Color.orange.opacity(0.18))
+                    .frame(width: 64, height: 64)
+                
+                Image(systemName: "wifi.exclamationmark")
+                    .font(.system(size: 28, weight: .bold))
+                    .foregroundColor(.orange)
+            }
+            
+            VStack(spacing: 6) {
+                Text("Источник не отвечает")
+                    .font(.system(size: 17, weight: .bold, design: .rounded))
+                    .foregroundColor(.primary)
+                
+                Text("Сервер \(source.displayName) временно недоступен или отклонил соединение.")
+                    .font(.system(size: 13, weight: .regular, design: .rounded))
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 20)
+            }
+            
+            VStack(spacing: 10) {
+                Button(action: {
+                    viewModel.showSourceSheet = true
+                }) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "square.grid.2x2.fill")
+                        Text("Выбрать другой источник")
+                    }
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .foregroundColor(.white)
+                    .frame(maxWidth: 240)
+                    .padding(.vertical, 10)
+                    .background(
+                        LinearGradient(
+                            colors: [Color.pink, Color.purple],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        ),
+                        in: Capsule()
+                    )
+                    .shadow(color: Color.pink.opacity(0.3), radius: 6, x: 0, y: 3)
+                }
+                
+                Button(action: {
+                    viewModel.loadNewImage()
+                }) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "arrow.clockwise")
+                        Text("Повторить попытку")
+                    }
+                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .foregroundColor(.primary)
+                    .frame(maxWidth: 240)
+                    .padding(.vertical, 8)
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .overlay(
+                        Capsule().stroke(Color.white.opacity(0.2), lineWidth: 1)
+                    )
+                }
+                
+                Button(action: {
+                    viewModel.showDebugSheet = true
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "ladybug")
+                        Text("Посмотреть логи отладки")
+                    }
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .foregroundColor(.secondary)
+                }
+                .padding(.top, 4)
+            }
+        }
+        .padding(24)
     }
     
     // MARK: - Bottom Floating Toolbar Capsule
@@ -794,7 +953,7 @@ struct SourcePickerSheet: View {
                                 VStack(alignment: .leading, spacing: 3) {
                                     HStack {
                                         Text(source.displayName)
-                                            .font(.system(size: 16, weight: .semibold, design: .rounded))
+                                            .font(.system(size: 15, weight: .semibold, design: .rounded))
                                             .foregroundColor(.primary)
                                         
                                         Text(source.tag)
@@ -909,6 +1068,221 @@ struct GallerySheet: View {
     }
 }
 
+// MARK: - Hidden Debug Console Sheet
+
+struct DebugConsoleSheet: View {
+    @ObservedObject var viewModel: AnimeGenViewModel
+    @ObservedObject var logger: DebugLogger
+    @Environment(\.dismiss) var dismiss
+    
+    @State private var pingResults: [String: String] = [:]
+    @State private var isPinging: Bool = false
+    @State private var filterErrorsOnly: Bool = false
+    
+    var filteredLogs: [DebugLogEntry] {
+        if filterErrorsOnly {
+            return logger.logs.filter { $0.isError }
+        }
+        return logger.logs
+    }
+    
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 0) {
+                // Quick Action Bar
+                VStack(spacing: 8) {
+                    HStack(spacing: 8) {
+                        Button(action: pingAllSources) {
+                            HStack(spacing: 4) {
+                                Image(systemName: isPinging ? "waveform.path.ecg" : "bolt.horizontal.fill")
+                                Text(isPinging ? "Pinging..." : "Test All Sources")
+                            }
+                            .font(.system(size: 12, weight: .bold))
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(Color.blue.opacity(0.15), in: Capsule())
+                            .foregroundColor(.blue)
+                        }
+                        .disabled(isPinging)
+                        
+                        Button(action: {
+                            UIPasteboard.general.string = logger.allLogsFormatted
+                            viewModel.showToast("Full logs copied to Clipboard! 📋")
+                        }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "doc.on.doc.fill")
+                                Text("Copy Logs")
+                            }
+                            .font(.system(size: 12, weight: .bold))
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(Color.green.opacity(0.15), in: Capsule())
+                            .foregroundColor(.green)
+                        }
+                        
+                        Spacer()
+                        
+                        Button(action: {
+                            viewModel.clearCache()
+                        }) {
+                            Image(systemName: "trash.fill")
+                                .font(.system(size: 12))
+                                .padding(7)
+                                .background(Color.orange.opacity(0.15), in: Circle())
+                                .foregroundColor(.orange)
+                        }
+                        
+                        Button(action: {
+                            logger.clear()
+                        }) {
+                            Image(systemName: "xmark.bin.fill")
+                                .font(.system(size: 12))
+                                .padding(7)
+                                .background(Color.red.opacity(0.15), in: Circle())
+                                .foregroundColor(.red)
+                        }
+                    }
+                    
+                    Toggle(isOn: $filterErrorsOnly) {
+                        Text("Show Errors & Warnings Only")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(Color(UIColor.secondarySystemBackground))
+                
+                // Ping Results List if available
+                if !pingResults.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Source Status:")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(.secondary)
+                        
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 6) {
+                                ForEach(Array(pingResults.keys.sorted()), id: \.self) { key in
+                                    let val = pingResults[key] ?? ""
+                                    HStack(spacing: 4) {
+                                        Text(key)
+                                            .font(.system(size: 10, weight: .bold))
+                                        Text(val)
+                                            .font(.system(size: 10, design: .monospaced))
+                                    }
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(val.contains("❌") ? Color.red.opacity(0.15) : Color.green.opacity(0.15), in: Capsule())
+                                    .foregroundColor(val.contains("❌") ? .red : .green)
+                                }
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 6)
+                    .background(Color(UIColor.tertiarySystemBackground))
+                }
+                
+                // Real-time Logs List
+                if filteredLogs.isEmpty {
+                    VStack(spacing: 8) {
+                        Spacer()
+                        Image(systemName: "terminal")
+                            .font(.system(size: 36))
+                            .foregroundColor(.secondary)
+                        Text("No logs recorded yet")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.secondary)
+                        Spacer()
+                    }
+                } else {
+                    List {
+                        ForEach(filteredLogs.reversed()) { entry in
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack {
+                                    Text(entry.timeString)
+                                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                                        .foregroundColor(.secondary)
+                                    
+                                    Text(entry.tag)
+                                        .font(.system(size: 10, weight: .black, design: .rounded))
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .background(entry.isError ? Color.red.opacity(0.2) : Color.blue.opacity(0.15), in: Capsule())
+                                        .foregroundColor(entry.isError ? .red : .blue)
+                                    
+                                    Spacer()
+                                }
+                                
+                                Text(entry.message)
+                                    .font(.system(size: 12, weight: .medium, design: .monospaced))
+                                    .foregroundColor(entry.isError ? .red : .primary)
+                                
+                                if let details = entry.details, !details.isEmpty {
+                                    Text(details)
+                                        .font(.system(size: 10, design: .monospaced))
+                                        .foregroundColor(.secondary)
+                                        .lineLimit(3)
+                                }
+                            }
+                            .padding(.vertical, 2)
+                        }
+                    }
+                    .listStyle(.plain)
+                }
+            }
+            .navigationTitle("Live Debug Console")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Close") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+    
+    private func pingAllSources() {
+        isPinging = true
+        pingResults.removeAll()
+        
+        let testable = ImageSource.allCases.filter { $0 != .random }
+        Task {
+            await withTaskGroup(of: (String, String).self) { group in
+                for source in testable {
+                    group.addTask {
+                        let t0 = CFAbsoluteTimeGetCurrent()
+                        do {
+                            switch source {
+                            case .nekosBest: _ = try await NekosBestAPI.fetch()
+                            case .picRe: _ = try await PicReAPI.fetch()
+                            case .nekoBot: _ = try await NekoBotAPI.fetch()
+                            case .nekosApi: _ = try await NekosApiAPI.fetch()
+                            case .nekosLife: _ = try await NekosLifeAPI.fetch()
+                            case .nekosMoe: _ = try await NekosMoeAPI.fetch()
+                            case .purr: _ = try await PurrAPI.fetch()
+                            case .waifupics: _ = try await WaifuPicsAPI.fetch()
+                            case .waifuIm: _ = try await WaifuImAPI.fetch()
+                            case .random: break
+                            }
+                            let ms = Int((CFAbsoluteTimeGetCurrent() - t0) * 1000)
+                            return (source.displayName, "\(ms)ms ✅")
+                        } catch {
+                            return (source.displayName, "❌")
+                        }
+                    }
+                }
+                
+                for await (name, result) in group {
+                    pingResults[name] = result
+                }
+            }
+            isPinging = false
+        }
+    }
+}
+
 // MARK: - UIKit ViewController Bridge
 
 public class ViewController: UIViewController {
@@ -942,4 +1316,3 @@ public class ViewController: UIViewController {
     @IBAction func rewindButtonTapped(_ sender: UIButton) {}
     @IBAction func heartButtonTapped(_ sender: UIButton) {}
 }
-
