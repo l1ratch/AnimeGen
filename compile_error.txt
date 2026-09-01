@@ -1,0 +1,18 @@
+=== COMPILER ERRORS ===
+    cd /Users/runner/work/AnimeGen/AnimeGen
+    
+/Users/runner/work/AnimeGen/AnimeGen/AnimeGen/Sources/waifu-pics.swift:69:21: error: expression is 'async' but is not marked with 'await'
+                    DebugLogger.shared.log(tag: "OtakuGIFs", message: "OtakuGIFs proxy fallback -> NekosBest / WaifuPics: \(error.localizedDescription)")
+                    ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+                    await 
+/Users/runner/work/AnimeGen/AnimeGen/AnimeGen/Sources/waifu-pics.swift:69:21: note: calls to instance method 'log(tag:message:isError:details:)' from outside of its actor context are implicitly asynchronous
+                    DebugLogger.shared.log(tag: "OtakuGIFs", message: "OtakuGIFs proxy fallback -> NekosBest / WaifuPics: \(error.localizedDescription)")
+--
+                    DebugLogger.shared.log(tag: "OtakuGIFs", message: "OtakuGIFs proxy fallback -> NekosBest / WaifuPics: \(error.localizedDescription)")
+                    ^
+/Users/runner/work/AnimeGen/AnimeGen/AnimeGen/Sources/waifu-im.swift:52:17: error: expression is 'async' but is not marked with 'await'
+                DebugLogger.shared.log(tag: "Waifu.im", message: "Waifu.im cloudflare/network fallback -> Danbooru Waifu")
+                ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+                await 
+/Users/runner/work/AnimeGen/AnimeGen/AnimeGen/Sources/waifu-im.swift:52:17: note: calls to instance method 'log(tag:message:isError:details:)' from outside of its actor context are implicitly asynchronous
+                DebugLogger.shared.log(tag: "Waifu.im", message: "Waifu.im cloudflare/network fallback -> Danbooru Waifu")
