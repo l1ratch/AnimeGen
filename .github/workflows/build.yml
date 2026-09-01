@@ -31,8 +31,8 @@ jobs:
     - name: Print failure log
       if: failure()
       run: |
-        echo "=== XCODEBUILD FAILED (Last 150 lines): ==="
-        tail -n 150 build_output.log || true
+        echo "=== EXACT COMPILER ERRORS: ==="
+        grep -E "(: error:|fatal error:)" build_output.log -B 2 -A 5 || tail -n 200 build_output.log || true
       shell: bash
 
     - name: Upload Build Log
