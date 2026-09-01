@@ -1927,6 +1927,87 @@ struct DebugConsoleSheet: View {
     }
     
     private func shareLogsViaPastebin() {
+        isSharingPastebin = true
+        let logContent = """
+        === AnimeGen Debug Logs ===
+        Date: \(Date())
+        Proxy: \(viewModel.proxyConfig.isEnabled ? "\(viewModel.proxyConfig.isSOCKS ? "SOCKS5" : "HTTP") \(viewModel.proxyConfig.host):\(viewModel.proxyConfig.port)" : "Disabled")
+        
+        \(logger.allLogsFormatted)
+        """
+        
+        Task {
+            guard let url = URL(string: "https://paste.rs") else { return }
+            var req = URLRequest(url: url)
+            req.httpMethod = "POST"
+            req.httpBody = logContent.data(using: .utf8)
+            req.timeoutInterval = 10.0
+            
+            do {
+                let (data, response) = try await URLSession.shared.data(for: req)
+                if let httpResp = response as? HTTPURLResponse, (200...299).contains(httpResp.statusCode),
+                   let rawURL = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
+                   let pasteURL = URL(string: rawURL) {
+                    await MainActor.run {
+                        self.isSharingPastebin = false
+                        UIPasteboard.general.string = rawURL
+                        viewModel.showToast("Ссылка создана и скопирована! 🔗")
+                        presentShareSheet(items: [rawURL, pasteURL])
+                    }
+                    return
+                }
+                throw URLError(.badServerResponse)
+            } catch {
+                await MainActor.run {
+                    self.isSharingPastebin = false
+                    UIPasteboard.general.string = logContent
+                    viewModel.showToast("Логи скопированы в буфер (ошибка сети)")
+                    presentShareSheet(items: [logContent])
+                }
+            }
+        }
+    }
+    
+    private func pingAllSources() {
+        isPinging = true
+        pingResults.removeAll()
+        
+        let testable = ImageSource.allCases.filter { $0 != .random }
+        Task {
+            await withTaskGroup(of: (String, String).self) { group in
+                for source in testable {
+                    group.addTask {
+                        let t0 = CFAbsoluteTimeGetCurrent()
+                        do {
+                            switch source {
+                            case .nekosBest: _ = try await NekosBestAPI.fetch(orientation: viewModel.orientationMode)
+                            case .picRe: _ = try await PicReAPI.fetch(orientation: viewModel.orientationMode)
+                            case .nekoBot: _ = try await NekoBotAPI.fetch(orientation: viewModel.orientationMode)
+                            case .nekosApi: _ = try await NekosApiAPI.fetch()
+                            case .nekosLife: _ = try await NekosLifeAPI.fetch(orientation: viewModel.orientationMode)
+                            case .nekosMoe: _ = try await NekosMoeAPI.fetch()
+                            case .purr: _ = try await PurrAPI.fetch(orientation: viewModel.orientationMode)
+                            case .waifupics: _ = try await WaifuPicsAPI.fetch(orientation: viewModel.orientationMode)
+                            case .waifuIm: _ = try await WaifuImAPI.fetch()
+                            case .random: break
+                            }
+                            let ms = Int((CFAbsoluteTimeGetCurrent() - t0) * 1000)
+                            return (source.displayName, "\(ms)ms ✅")
+                        } catch {
+                            return (source.displayName, "❌")
+                        }
+                    }
+                }
+                
+                for await (name, result) in group {
+                    pingResults[name] = result
+                }
+            }
+            isPinging = false
+        }
+    }
+}
+
 // MARK: - Global Share Sheet Helper
 
 func presentShareSheet(items: [Any]) {
