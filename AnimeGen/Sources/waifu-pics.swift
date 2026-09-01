@@ -15,7 +15,7 @@ enum WaifuPicsAPI {
         "poke", "smile", "blush", "wink", "happy", "cry", "pout", "smug"
     ]
     
-    static func fetch() async throws -> AnimeArtItem {
+    static func fetch(orientation: OrientationMode = .any) async throws -> AnimeArtItem {
         let reaction = reactions.randomElement() ?? "hug"
         guard let url = URL(string: "https://api.otakugifs.xyz/gif?reaction=\(reaction)") else {
             throw URLError(.badURL)
