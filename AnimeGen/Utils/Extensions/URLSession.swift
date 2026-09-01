@@ -1,8 +1,6 @@
 //
-//  AppDelegate.swift
+//  URLSession.swift
 //  AnimeGen
-//
-//  Created by Francesco on 26/01/25.
 //
 
 import Foundation
@@ -10,9 +8,13 @@ import Foundation
 extension URLSession {
     static let custom: URLSession = {
         let configuration = URLSessionConfiguration.default
+        configuration.timeoutIntervalForRequest = 15.0
+        configuration.timeoutIntervalForResource = 30.0
         configuration.httpAdditionalHeaders = [
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+            "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Safari/604.1",
+            "Accept": "application/json, image/*, */*"
         ]
         return URLSession(configuration: configuration)
     }()
 }
+
