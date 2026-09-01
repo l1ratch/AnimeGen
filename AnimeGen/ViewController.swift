@@ -21,9 +21,22 @@ public enum ImageSource: String, CaseIterable, Identifiable, Codable {
     case purr = "purr"
     case waifupics = "waifuPics"
     case waifuIm = "waifuIm"
+    case nekoBotHentai = "nekoBotHentai"
+    case nekoBotNSFWGIF = "nekoBotNSFWGIF"
+    case purrNSFW = "purrNSFW"
+    case danbooruNSFW = "danbooruNSFW"
     case random = "random"
     
     public var id: String { rawValue }
+    
+    public var isNSFW: Bool {
+        switch self {
+        case .nekoBotHentai, .nekoBotNSFWGIF, .purrNSFW, .danbooruNSFW:
+            return true
+        default:
+            return false
+        }
+    }
     
     public var displayName: String {
         switch self {
@@ -36,6 +49,10 @@ public enum ImageSource: String, CaseIterable, Identifiable, Codable {
         case .purr: return "PurrBot"
         case .waifupics: return "Otaku GIFs"
         case .waifuIm: return "Waifu.im"
+        case .nekoBotHentai: return "NekoBot 18+"
+        case .nekoBotNSFWGIF: return "NekoBot 18+ GIF"
+        case .purrNSFW: return "PurrBot 18+ GIF"
+        case .danbooruNSFW: return "Danbooru R-18"
         case .random: return "Random Mix"
         }
     }
@@ -51,6 +68,10 @@ public enum ImageSource: String, CaseIterable, Identifiable, Codable {
         case .purr: return "pawprint.fill"
         case .waifupics: return "play.rectangle.fill"
         case .waifuIm: return "person.crop.circle.fill"
+        case .nekoBotHentai: return "flame.fill"
+        case .nekoBotNSFWGIF: return "play.square.fill"
+        case .purrNSFW: return "flame.circle.fill"
+        case .danbooruNSFW: return "heart.slash.fill"
         case .random: return "dice.fill"
         }
     }
@@ -66,6 +87,10 @@ public enum ImageSource: String, CaseIterable, Identifiable, Codable {
         case .purr: return "Cute wallpapers & reaction GIFs"
         case .waifupics: return "High quality animated anime GIFs"
         case .waifuIm: return "Diverse waifu illustrations"
+        case .nekoBotHentai: return "Hentai art & illustrations (18+)"
+        case .nekoBotNSFWGIF: return "Animated adult anime GIFs (18+)"
+        case .purrNSFW: return "Adult 60 FPS animated reaction GIFs (18+)"
+        case .danbooruNSFW: return "Curated R-18 artwork database (18+)"
         case .random: return "Picks a random enabled source"
         }
     }
@@ -76,6 +101,10 @@ public enum ImageSource: String, CaseIterable, Identifiable, Codable {
         case .picRe: return "HD"
         case .nekosBest: return "Top"
         case .random: return "Mix"
+        case .nekoBotHentai: return "18+ 🔥"
+        case .nekoBotNSFWGIF: return "GIF 18+ 🔥"
+        case .purrNSFW: return "GIF 18+ 🔥"
+        case .danbooruNSFW: return "R-18 🔥"
         default: return "SFW"
         }
     }
@@ -259,6 +288,8 @@ public class AnimeGenViewModel: ObservableObject {
     @Published public var customSources: [CustomSourceItem] = []
     
     @Published public var proxyConfig: ProxyConfig = AppNetworkManager.currentProxy
+    @Published public var isNSFWEnabled: Bool = UserDefaults.standard.bool(forKey: "is_nsfw_enabled_v1")
+    @Published public var showAgeVerificationAlert: Bool = false
     
     @Published public var isLoading: Bool = false
     @Published public var errorMessage: String? = nil
@@ -280,7 +311,11 @@ public class AnimeGenViewModel: ObservableObject {
         // Load saved source
         if let savedSource = UserDefaults.standard.string(forKey: "selectedSource"),
            let source = ImageSource(rawValue: savedSource) {
-            self.selectedSource = source
+            if source.isNSFW && !UserDefaults.standard.bool(forKey: "is_nsfw_enabled_v1") {
+                self.selectedSource = .nekosBest
+            } else {
+                self.selectedSource = source
+            }
         }
         
         // Load orientation preference
@@ -312,8 +347,28 @@ public class AnimeGenViewModel: ObservableObject {
         // Configure Kingfisher
         KingfisherManager.shared.downloader.downloadTimeout = 6.0
         
-        DebugLogger.shared.log(tag: "App", message: "AnimeGen v3.1.0-beta.8 initialized with source: \(selectedSource.displayName)")
+        DebugLogger.shared.log(tag: "App", message: "AnimeGen initialized with source: \(selectedSource.displayName)")
         loadNewImage()
+    }
+    
+    public func requestToggleNSFW() {
+        if isNSFWEnabled {
+            isNSFWEnabled = false
+            UserDefaults.standard.set(false, forKey: "is_nsfw_enabled_v1")
+            showToast("Режим 18+ выключен")
+            if selectedSource.isNSFW {
+                setSource(.nekosBest)
+            }
+        } else {
+            showAgeVerificationAlert = true
+        }
+    }
+    
+    public func confirmAgeVerification() {
+        isNSFWEnabled = true
+        UserDefaults.standard.set(true, forKey: "is_nsfw_enabled_v1")
+        showToast("Режим 18+ включен 🔥")
+        DebugLogger.shared.log(tag: "NSFW", message: "NSFW adult content enabled after 18+ age verification")
     }
     
     public func setSource(_ source: ImageSource) {
@@ -348,7 +403,10 @@ public class AnimeGenViewModel: ObservableObject {
     }
     
     public func isSourceEnabled(_ source: ImageSource) -> Bool {
-        !disabledSources.contains(source.rawValue)
+        if source.isNSFW && !isNSFWEnabled {
+            return false
+        }
+        return !disabledSources.contains(source.rawValue)
     }
     
     public func saveCustomSources() {
@@ -367,7 +425,11 @@ public class AnimeGenViewModel: ObservableObject {
         let sourceToUse = targetSource ?? selectedSource
         let actualSource: ImageSource
         if sourceToUse == .random {
-            let selectableSources = ImageSource.allCases.filter { $0 != .random && !disabledSources.contains($0.rawValue) }
+            let selectableSources = ImageSource.allCases.filter { 
+                $0 != .random && 
+                (!$0.isNSFW || isNSFWEnabled) && 
+                !disabledSources.contains($0.rawValue) 
+            }
             actualSource = selectableSources.randomElement() ?? .nekosBest
         } else {
             actualSource = sourceToUse
@@ -403,6 +465,14 @@ public class AnimeGenViewModel: ObservableObject {
                     item = try await WaifuPicsAPI.fetch(orientation: self.orientationMode)
                 case .waifuIm:
                     item = try await WaifuImAPI.fetch()
+                case .nekoBotHentai:
+                    item = try await NekoBotNSFWAPI.fetch(isGIFOnly: false)
+                case .nekoBotNSFWGIF:
+                    item = try await NekoBotNSFWAPI.fetch(isGIFOnly: true)
+                case .purrNSFW:
+                    item = try await PurrBotNSFWAPI.fetch()
+                case .danbooruNSFW:
+                    item = try await DanbooruAPI.fetch(isNSFW: true)
                 case .random:
                     item = try await NekosBestAPI.fetch(orientation: self.orientationMode)
                 }
@@ -746,12 +816,21 @@ struct ModernContentView: View {
                 HStack(spacing: 6) {
                     Image(systemName: viewModel.selectedSource.iconName)
                         .font(.system(size: 13, weight: .bold))
-                        .foregroundColor(.pink)
+                        .foregroundColor(viewModel.selectedSource.isNSFW ? .red : .pink)
                     
                     Text(viewModel.selectedSource.displayName)
                         .font(.system(size: 13, weight: .semibold, design: .rounded))
-                        .foregroundColor(Color(UIColor.label))
+                        .foregroundColor(viewModel.selectedSource.isNSFW ? .red : Color(UIColor.label))
                         .lineLimit(1)
+                    
+                    if viewModel.selectedSource.isNSFW {
+                        Text("18+")
+                            .font(.system(size: 9, weight: .heavy, design: .rounded))
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 1)
+                            .background(Color.red.opacity(0.2), in: Capsule())
+                            .foregroundColor(.red)
+                    }
                     
                     Image(systemName: "chevron.down")
                         .font(.system(size: 9, weight: .bold))
@@ -761,7 +840,7 @@ struct ModernContentView: View {
                 .padding(.vertical, 7)
                 .background(.ultraThinMaterial, in: Capsule())
                 .overlay(
-                    Capsule().stroke(Color(UIColor.separator).opacity(0.35), lineWidth: 1)
+                    Capsule().stroke(viewModel.selectedSource.isNSFW ? Color.red.opacity(0.5) : Color(UIColor.separator).opacity(0.35), lineWidth: 1)
                 )
                 .shadow(color: Color.black.opacity(0.08), radius: 6, x: 0, y: 3)
             }
@@ -1282,12 +1361,33 @@ struct AppMenuSheet: View {
                     }
                 }
                 
+                Section(header: Text("Контент 18+ (NSFW)").foregroundColor(.red)) {
+                    Toggle(isOn: Binding(
+                        get: { viewModel.isNSFWEnabled },
+                        set: { _ in viewModel.requestToggleNSFW() }
+                    )) {
+                        Label {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Разрешить контент 18+ (NSFW)")
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(viewModel.isNSFWEnabled ? .red : Color(UIColor.label))
+                                Text(viewModel.isNSFWEnabled ? "Источники 18+ разблокированы 🔥" : "Разблокирует источники контента для взрослых (18+)")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                            }
+                        } icon: {
+                            Image(systemName: "flame.fill")
+                                .foregroundColor(viewModel.isNSFWEnabled ? .red : .gray)
+                        }
+                    }
+                }
+                
                 Section(header: Text("Отладка и сервис")) {
                     Button(action: {
                         dismiss()
                         viewModel.showDebugSheet = true
                     }) {
-                        Label("Консоль отладки & Пинг (v3.1-b9)", systemImage: "ladybug.fill")
+                        Label("Консоль отладки & Пинг (v3.1)", systemImage: "ladybug.fill")
                     }
                     
                     Button(action: {
@@ -1300,6 +1400,14 @@ struct AppMenuSheet: View {
             }
             .navigationTitle("Меню AnimeGen")
             .navigationBarTitleDisplayMode(.inline)
+            .alert("Подтверждение возраста (18+)", isPresented: $viewModel.showAgeVerificationAlert) {
+                Button("Мне есть 18 лет", role: .none) {
+                    viewModel.confirmAgeVerification()
+                }
+                Button("Отмена", role: .cancel) {}
+            } message: {
+                Text("Вам уже исполнилось 18 лет? Включение этого режима разблокирует NSFW категории и источники контента для взрослых.")
+            }
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Готово") {
@@ -1613,50 +1721,21 @@ struct SourcePickerSheet: View {
     var body: some View {
         NavigationView {
             List {
-                Section(header: Text("Выберите источник артов").font(.caption)) {
-                    ForEach(ImageSource.allCases.filter { viewModel.isSourceEnabled($0) }) { source in
-                        Button(action: {
-                            viewModel.setSource(source)
-                            dismiss()
-                        }) {
-                            HStack(spacing: 14) {
-                                ZStack {
-                                    Circle()
-                                        .fill(source == viewModel.selectedSource ? Color.pink.opacity(0.2) : Color.gray.opacity(0.15))
-                                        .frame(width: 38, height: 38)
-                                    Image(systemName: source.iconName)
-                                        .font(.system(size: 16, weight: .bold))
-                                        .foregroundColor(source == viewModel.selectedSource ? .pink : .secondary)
-                                }
-                                
-                                VStack(alignment: .leading, spacing: 3) {
-                                    HStack {
-                                        Text(source.displayName)
-                                            .font(.system(size: 15, weight: .semibold, design: .rounded))
-                                            .foregroundColor(Color(UIColor.label))
-                                        
-                                        Text(source.tag)
-                                            .font(.system(size: 9, weight: .bold, design: .rounded))
-                                            .padding(.horizontal, 6)
-                                            .padding(.vertical, 2)
-                                            .background(source == .waifupics ? Color.pink.opacity(0.2) : Color.blue.opacity(0.15), in: Capsule())
-                                            .foregroundColor(source == .waifupics ? .pink : .blue)
-                                    }
-                                    
-                                    Text(source.description)
-                                        .font(.system(size: 12))
-                                        .foregroundColor(.secondary)
-                                }
-                                
-                                Spacer()
-                                
-                                if source == viewModel.selectedSource {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .foregroundColor(.pink)
-                                        .font(.system(size: 20))
-                                }
-                            }
-                            .padding(.vertical, 4)
+                let sfwSources = ImageSource.allCases.filter { !$0.isNSFW && viewModel.isSourceEnabled($0) }
+                Section(header: Text("Стандартные источники (SFW)").font(.caption)) {
+                    ForEach(sfwSources) { source in
+                        sourceRow(for: source)
+                    }
+                }
+                
+                if viewModel.isNSFWEnabled {
+                    let nsfwSources = ImageSource.allCases.filter { $0.isNSFW && viewModel.isSourceEnabled($0) }
+                    Section(header: HStack {
+                        Image(systemName: "flame.fill").foregroundColor(.red)
+                        Text("Источники 18+ (NSFW)").font(.caption).foregroundColor(.red).fontWeight(.bold)
+                    }) {
+                        ForEach(nsfwSources) { source in
+                            sourceRow(for: source)
                         }
                     }
                 }
@@ -1668,6 +1747,53 @@ struct SourcePickerSheet: View {
                     Button("Готово") { dismiss() }
                 }
             }
+        }
+    }
+    
+    @ViewBuilder
+    private func sourceRow(for source: ImageSource) -> some View {
+        Button(action: {
+            viewModel.setSource(source)
+            dismiss()
+        }) {
+            HStack(spacing: 14) {
+                ZStack {
+                    Circle()
+                        .fill(source.isNSFW ? Color.red.opacity(0.2) : (source == viewModel.selectedSource ? Color.pink.opacity(0.2) : Color.gray.opacity(0.15)))
+                        .frame(width: 38, height: 38)
+                    Image(systemName: source.iconName)
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(source.isNSFW ? .red : (source == viewModel.selectedSource ? .pink : .secondary))
+                }
+                
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack {
+                        Text(source.displayName)
+                            .font(.system(size: 15, weight: .semibold, design: .rounded))
+                            .foregroundColor(Color(UIColor.label))
+                        
+                        Text(source.tag)
+                            .font(.system(size: 9, weight: .bold, design: .rounded))
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(source.isNSFW ? Color.red.opacity(0.2) : (source == .waifupics ? Color.pink.opacity(0.2) : Color.blue.opacity(0.15)), in: Capsule())
+                            .foregroundColor(source.isNSFW ? .red : (source == .waifupics ? .pink : .blue))
+                    }
+                    
+                    Text(source.description)
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                }
+                
+                Spacer()
+                
+                if source == viewModel.selectedSource {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(source.isNSFW ? .red : .pink)
+                        .font(.system(size: 20))
+                }
+            }
+            .padding(.vertical, 4)
         }
     }
 }
@@ -1987,6 +2113,10 @@ struct DebugConsoleSheet: View {
                             case .purr: _ = try await PurrAPI.fetch(orientation: viewModel.orientationMode)
                             case .waifupics: _ = try await WaifuPicsAPI.fetch(orientation: viewModel.orientationMode)
                             case .waifuIm: _ = try await WaifuImAPI.fetch()
+                            case .nekoBotHentai: _ = try await NekoBotNSFWAPI.fetch(isGIFOnly: false)
+                            case .nekoBotNSFWGIF: _ = try await NekoBotNSFWAPI.fetch(isGIFOnly: true)
+                            case .purrNSFW: _ = try await PurrBotNSFWAPI.fetch()
+                            case .danbooruNSFW: _ = try await DanbooruAPI.fetch(isNSFW: true)
                             case .random: break
                             }
                             let ms = Int((CFAbsoluteTimeGetCurrent() - t0) * 1000)
