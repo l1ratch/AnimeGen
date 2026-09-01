@@ -66,7 +66,7 @@ enum WaifuPicsAPI {
                         )
                     }
                 } catch {
-                    DebugLogger.shared.log(tag: "OtakuGIFs", message: "OtakuGIFs proxy fallback -> NekosBest / WaifuPics: \(error.localizedDescription)")
+                    await DebugLogger.shared.log(tag: "OtakuGIFs", message: "OtakuGIFs proxy fallback -> NekosBest / WaifuPics: \(error.localizedDescription)")
                 }
             }
             

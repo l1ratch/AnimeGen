@@ -49,7 +49,7 @@ enum WaifuImAPI {
                     )
                 }
             } catch {
-                DebugLogger.shared.log(tag: "Waifu.im", message: "Waifu.im cloudflare/network fallback -> Danbooru Waifu")
+                await DebugLogger.shared.log(tag: "Waifu.im", message: "Waifu.im cloudflare/network fallback -> Danbooru Waifu")
             }
         }
         
