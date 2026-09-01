@@ -43,10 +43,6 @@ echo "==> Packaging IPA..."
 mkdir -p Payload
 cp -R "$TARGET_APP" Payload/"$APPLICATION_NAME.app"
 
-if [ -f "Payload/$APPLICATION_NAME.app/$APPLICATION_NAME" ]; then
-    strip -r Payload/"$APPLICATION_NAME.app/$APPLICATION_NAME" 2>/dev/null || true
-fi
-
 zip -qr "$APPLICATION_NAME.ipa" Payload
 rm -rf "$TARGET_APP"
 rm -rf Payload
