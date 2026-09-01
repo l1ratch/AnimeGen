@@ -1,0 +1,21 @@
+=== COMPILER ERRORS ===
+    cd /Users/runner/work/AnimeGen/AnimeGen
+    
+/Users/runner/work/AnimeGen/AnimeGen/AnimeGen/Utils/Extensions/URLSession.swift:70:27: error: 'kCFNetworkProxiesHTTPSEnable' is unavailable in iOS
+                proxyDict[kCFNetworkProxiesHTTPSEnable as String] = 1
+                          ^~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/Applications/Xcode_26.6.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.5.sdk/System/Library/Frameworks/CFNetwork.framework/Headers/CFProxySupport.h:489:30: note: 'kCFNetworkProxiesHTTPSEnable' has been explicitly marked unavailable here
+CFN_EXPORT const CFStringRef kCFNetworkProxiesHTTPSEnable CF_AVAILABLE(10_6, NA);
+                             ^
+/Users/runner/work/AnimeGen/AnimeGen/AnimeGen/Utils/Extensions/URLSession.swift:71:27: error: 'kCFNetworkProxiesHTTPSProxy' is unavailable in iOS
+                proxyDict[kCFNetworkProxiesHTTPSProxy as String] = currentProxy.host
+                          ^~~~~~~~~~~~~~~~~~~~~~~~~~~
+/Applications/Xcode_26.6.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.5.sdk/System/Library/Frameworks/CFNetwork.framework/Headers/CFProxySupport.h:507:30: note: 'kCFNetworkProxiesHTTPSProxy' has been explicitly marked unavailable here
+CFN_EXPORT const CFStringRef kCFNetworkProxiesHTTPSProxy CF_AVAILABLE(10_6, NA);
+                             ^
+/Users/runner/work/AnimeGen/AnimeGen/AnimeGen/Utils/Extensions/URLSession.swift:72:27: error: 'kCFNetworkProxiesHTTPSPort' is unavailable in iOS
+                proxyDict[kCFNetworkProxiesHTTPSPort as String] = currentProxy.port
+                          ^~~~~~~~~~~~~~~~~~~~~~~~~~
+/Applications/Xcode_26.6.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.5.sdk/System/Library/Frameworks/CFNetwork.framework/Headers/CFProxySupport.h:498:30: note: 'kCFNetworkProxiesHTTPSPort' has been explicitly marked unavailable here
+CFN_EXPORT const CFStringRef kCFNetworkProxiesHTTPSPort CF_AVAILABLE(10_6, NA);
+                             ^
