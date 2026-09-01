@@ -9,9 +9,9 @@ import Photos
 import Kingfisher
 import SafariServices
 
-// MARK: - Models
+// MARK: - Models & Enums
 
-public enum ImageSource: String, CaseIterable, Identifiable {
+public enum ImageSource: String, CaseIterable, Identifiable, Codable {
     case nekosBest = "nekosBest"
     case picRe = "picRe"
     case nekoBot = "nekoBot"
@@ -66,7 +66,7 @@ public enum ImageSource: String, CaseIterable, Identifiable {
         case .purr: return "Cute wallpapers & reaction GIFs"
         case .waifupics: return "High quality animated anime GIFs"
         case .waifuIm: return "Diverse waifu illustrations"
-        case .random: return "Picks a random source every time"
+        case .random: return "Picks a random enabled source"
         }
     }
     
@@ -79,6 +79,38 @@ public enum ImageSource: String, CaseIterable, Identifiable {
         default: return "SFW"
         }
     }
+}
+
+public enum OrientationMode: String, CaseIterable, Identifiable {
+    case vertical = "vertical"
+    case any = "any"
+    case horizontal = "horizontal"
+    
+    public var id: String { rawValue }
+    
+    public var title: String {
+        switch self {
+        case .vertical: return "Вертикальные"
+        case .any: return "Любой формат"
+        case .horizontal: return "Горизонтальные"
+        }
+    }
+    
+    public var iconName: String {
+        switch self {
+        case .vertical: return "iphone"
+        case .any: return "rectangle.dashed"
+        case .horizontal: return "ipad.landscape"
+        }
+    }
+}
+
+public struct CustomSourceItem: Identifiable, Codable, Equatable {
+    public var id = UUID()
+    public var name: String
+    public var endpointURL: String
+    public var jsonKeyPath: String
+    public var isEnabled: Bool = true
 }
 
 public struct AnimeArtItem: Identifiable, Equatable {
@@ -157,7 +189,7 @@ public class DebugLogger: ObservableObject {
     public var allLogsFormatted: String {
         let device = UIDevice.current
         var text = "=== AnimeGen Debug Log ===\n"
-        text += "App Version: 3.1.0-beta.3 (Build 4)\n"
+        text += "App Version: 3.1.0-beta.4 (Build 5)\n"
         text += "iOS: \(device.systemName) \(device.systemVersion)\n"
         text += "Device: \(device.model)\n"
         text += "Total Logs: \(logs.count)\n"
@@ -184,41 +216,88 @@ public class AnimeGenViewModel: ObservableObject {
     @Published public var favorites: [AnimeArtItem] = []
     @Published public var historyIndex: Int = -1
     @Published public var selectedSource: ImageSource = .nekosBest
+    @Published public var orientationMode: OrientationMode = .any
+    @Published public var disabledSources: Set<String> = []
+    @Published public var customSources: [CustomSourceItem] = []
+    
+    @Published public var proxyHost: String = ""
+    @Published public var proxyPort: String = ""
+    @Published public var isProxyEnabled: Bool = false
+    
     @Published public var isLoading: Bool = false
     @Published public var errorMessage: String? = nil
     @Published public var failedSource: ImageSource? = nil
     @Published public var toastMessage: String? = nil
     
     @Published public var showSourceSheet: Bool = false
+    @Published public var showAppMenuSheet: Bool = false
     @Published public var showHistorySheet: Bool = false
     @Published public var showFavoritesSheet: Bool = false
+    @Published public var showSourceManagerSheet: Bool = false
+    @Published public var showProxySheet: Bool = false
     @Published public var showDebugSheet: Bool = false
     
     private let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
     private let notificationFeedback = UINotificationFeedbackGenerator()
     
     public init() {
+        // Load saved source
         if let savedSource = UserDefaults.standard.string(forKey: "selectedSource"),
            let source = ImageSource(rawValue: savedSource) {
             self.selectedSource = source
         }
-        DebugLogger.shared.log(tag: "App", message: "AnimeGen initialized with source: \(selectedSource.displayName)")
+        
+        // Load orientation preference
+        if let savedMode = UserDefaults.standard.string(forKey: "orientationMode"),
+           let mode = OrientationMode(rawValue: savedMode) {
+            self.orientationMode = mode
+        }
+        
+        // Load disabled sources
+        if let disabled = UserDefaults.standard.stringArray(forKey: "disabledSources") {
+            self.disabledSources = Set(disabled)
+        }
+        
+        // Configure Kingfisher
+        KingfisherManager.shared.downloader.downloadTimeout = 6.0
+        
+        DebugLogger.shared.log(tag: "App", message: "AnimeGen v3.1.0-beta.4 initialized with source: \(selectedSource.displayName)")
         loadNewImage()
     }
     
     public func setSource(_ source: ImageSource) {
         selectedSource = source
         UserDefaults.standard.set(source.rawValue, forKey: "selectedSource")
-        DebugLogger.shared.log(tag: "Source", message: "User selected source: \(source.displayName)")
+        DebugLogger.shared.log(tag: "Source", message: "Selected source: \(source.displayName)")
         showToast("Switched to \(source.displayName)")
         loadNewImage()
+    }
+    
+    public func setOrientationMode(_ mode: OrientationMode) {
+        orientationMode = mode
+        UserDefaults.standard.set(mode.rawValue, forKey: "orientationMode")
+        showToast("Режим: \(mode.title)")
+        loadNewImage()
+    }
+    
+    public func toggleSourceEnabled(_ source: ImageSource) {
+        if disabledSources.contains(source.rawValue) {
+            disabledSources.remove(source.rawValue)
+        } else {
+            disabledSources.insert(source.rawValue)
+        }
+        UserDefaults.standard.set(Array(disabledSources), forKey: "disabledSources")
+    }
+    
+    public func isSourceEnabled(_ source: ImageSource) -> Bool {
+        !disabledSources.contains(source.rawValue)
     }
     
     public func loadNewImage(targetSource: ImageSource? = nil) {
         let sourceToUse = targetSource ?? selectedSource
         let actualSource: ImageSource
         if sourceToUse == .random {
-            let selectableSources = ImageSource.allCases.filter { $0 != .random }
+            let selectableSources = ImageSource.allCases.filter { $0 != .random && !disabledSources.contains($0.rawValue) }
             actualSource = selectableSources.randomElement() ?? .nekosBest
         } else {
             actualSource = sourceToUse
@@ -230,7 +309,7 @@ public class AnimeGenViewModel: ObservableObject {
         impactFeedback.prepare()
         
         let startTime = CFAbsoluteTimeGetCurrent()
-        DebugLogger.shared.log(tag: "Fetch", message: "Requesting art from \(actualSource.displayName)...")
+        DebugLogger.shared.log(tag: "Fetch", message: "Requesting art from \(actualSource.displayName) [\(orientationMode.rawValue)]...")
         
         Task {
             do {
@@ -394,7 +473,7 @@ public class AnimeGenViewModel: ObservableObject {
         ImageCache.default.clearMemoryCache()
         ImageCache.default.clearDiskCache {
             DispatchQueue.main.async {
-                self.showToast("Image cache cleared! 🧹")
+                self.showToast("Кэш изображений очищен! 🧹")
                 DebugLogger.shared.log(tag: "Cache", message: "Disk and memory image cache cleared")
             }
         }
@@ -411,21 +490,21 @@ struct ModernContentView: View {
     @State private var showHeartAnimation: Bool = false
     
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 6) {
             // Top Header Bar
             topHeaderBar
-                .padding(.horizontal, 16)
+                .padding(.horizontal, 14)
                 .padding(.top, 4)
             
-            // Center Interactive HD Canvas
+            // Center Interactive HD Canvas (Fills Screen Beautifully)
             mainImageCanvas
-                .padding(.horizontal, 14)
+                .padding(.horizontal, 10)
                 .padding(.vertical, 2)
             
-            // Bottom Compact Floating Toolbar Capsule
+            // Bottom Compact Floating Toolbar Capsule (Lowered for Ergonomics)
             bottomToolbarCapsule
-                .padding(.horizontal, 16)
-                .padding(.bottom, 6)
+                .padding(.horizontal, 14)
+                .padding(.bottom, 2)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(
@@ -449,17 +528,20 @@ struct ModernContentView: View {
             Group {
                 if showHeartAnimation {
                     Image(systemName: "heart.fill")
-                        .font(.system(size: 72))
-                        .foregroundColor(.red.opacity(0.9))
-                        .scaleEffect(showHeartAnimation ? 1.2 : 0.4)
+                        .font(.system(size: 76))
+                        .foregroundColor(.red.opacity(0.92))
+                        .scaleEffect(showHeartAnimation ? 1.25 : 0.4)
                         .opacity(showHeartAnimation ? 1 : 0)
                         .animation(.spring(response: 0.3, dampingFraction: 0.5), value: showHeartAnimation)
-                        .shadow(color: .black.opacity(0.35), radius: 12, x: 0, y: 6)
+                        .shadow(color: .black.opacity(0.4), radius: 15, x: 0, y: 8)
                 }
             }
         )
         .sheet(isPresented: $viewModel.showSourceSheet) {
             SourcePickerSheet(viewModel: viewModel)
+        }
+        .sheet(isPresented: $viewModel.showAppMenuSheet) {
+            AppMenuSheet(viewModel: viewModel)
         }
         .sheet(isPresented: $viewModel.showHistorySheet) {
             GallerySheet(
@@ -485,12 +567,18 @@ struct ModernContentView: View {
                 }
             )
         }
+        .sheet(isPresented: $viewModel.showSourceManagerSheet) {
+            SourceManagerSheet(viewModel: viewModel)
+        }
+        .sheet(isPresented: $viewModel.showProxySheet) {
+            ProxySettingsSheet(viewModel: viewModel)
+        }
         .sheet(isPresented: $viewModel.showDebugSheet) {
             DebugConsoleSheet(viewModel: viewModel, logger: debugLogger)
         }
     }
     
-    // MARK: - Ambient Background
+    // MARK: - Vibrant Ambient Background
     private var ambientBackground: some View {
         ZStack {
             Color(UIColor.systemBackground)
@@ -499,12 +587,28 @@ struct ModernContentView: View {
                 KFImage(current.imageURL)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
-                    .blur(radius: 60)
-                    .opacity(0.3)
+                    .blur(radius: 35)
+                    .opacity(0.60)
             }
             
+            // Rich radial gradient bloom
+            RadialGradient(
+                gradient: Gradient(colors: [
+                    Color.pink.opacity(0.18),
+                    Color.purple.opacity(0.12),
+                    Color.black.opacity(0.35)
+                ]),
+                center: .center,
+                startRadius: 40,
+                endRadius: 400
+            )
+            
             LinearGradient(
-                colors: [Color.black.opacity(0.12), Color.clear, Color.black.opacity(0.25)],
+                colors: [
+                    Color(UIColor.systemBackground).opacity(0.3),
+                    Color.clear,
+                    Color(UIColor.systemBackground).opacity(0.6)
+                ],
                 startPoint: .top,
                 endPoint: .bottom
             )
@@ -514,7 +618,7 @@ struct ModernContentView: View {
     // MARK: - Top Header Bar
     private var topHeaderBar: some View {
         HStack(spacing: 8) {
-            // Source Selector Button
+            // Source Selector Button (Enhanced Light/Dark Contrast)
             Button(action: {
                 viewModel.showSourceSheet = true
             }) {
@@ -525,81 +629,73 @@ struct ModernContentView: View {
                     
                     Text(viewModel.selectedSource.displayName)
                         .font(.system(size: 13, weight: .semibold, design: .rounded))
-                        .foregroundColor(.primary)
+                        .foregroundColor(Color(UIColor.label))
                         .lineLimit(1)
                     
                     Image(systemName: "chevron.down")
                         .font(.system(size: 9, weight: .bold))
                         .foregroundColor(.secondary)
                 }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
+                .padding(.horizontal, 11)
+                .padding(.vertical, 7)
                 .background(.ultraThinMaterial, in: Capsule())
                 .overlay(
-                    Capsule().stroke(Color.white.opacity(0.18), lineWidth: 1)
+                    Capsule().stroke(Color(UIColor.separator).opacity(0.35), lineWidth: 1)
                 )
+                .shadow(color: Color.black.opacity(0.08), radius: 6, x: 0, y: 3)
             }
             
             Spacer(minLength: 4)
             
-            // Build Beta Badge (Tap opens Debug Console)
+            // Orientation Mode Switcher Pill
             Button(action: {
-                viewModel.showDebugSheet = true
+                switch viewModel.orientationMode {
+                case .vertical: viewModel.setOrientationMode(.any)
+                case .any: viewModel.setOrientationMode(.horizontal)
+                case .horizontal: viewModel.setOrientationMode(.vertical)
+                }
             }) {
-                HStack(spacing: 3) {
-                    Image(systemName: "ladybug.fill")
-                        .font(.system(size: 9))
-                    Text("b4")
+                HStack(spacing: 4) {
+                    Image(systemName: viewModel.orientationMode.iconName)
+                        .font(.system(size: 11, weight: .bold))
+                    Text(viewModel.orientationMode == .vertical ? "9:16" : (viewModel.orientationMode == .horizontal ? "16:9" : "Mix"))
                         .font(.system(size: 10, weight: .bold, design: .monospaced))
                 }
-                .padding(.horizontal, 7)
-                .padding(.vertical, 4)
-                .background(Color.purple.opacity(0.18), in: Capsule())
-                .foregroundColor(.purple)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 7)
+                .background(.ultraThinMaterial, in: Capsule())
+                .overlay(
+                    Capsule().stroke(Color(UIColor.separator).opacity(0.35), lineWidth: 1)
+                )
+                .foregroundColor(Color(UIColor.label))
+                .shadow(color: Color.black.opacity(0.08), radius: 6, x: 0, y: 3)
             }
             
-            // Favorites & History Compact Pills
-            HStack(spacing: 6) {
-                Button(action: {
-                    viewModel.showFavoritesSheet = true
-                }) {
-                    HStack(spacing: 3) {
-                        Image(systemName: "heart.fill")
-                            .font(.system(size: 12))
-                            .foregroundColor(.red)
-                        if !viewModel.favorites.isEmpty {
-                            Text("\(viewModel.favorites.count)")
-                                .font(.system(size: 11, weight: .bold, design: .rounded))
-                                .foregroundColor(.primary)
-                        }
+            // Consolidated App Menu Button
+            Button(action: {
+                viewModel.showAppMenuSheet = true
+            }) {
+                ZStack {
+                    HStack(spacing: 4) {
+                        Image(systemName: "ellipsis.circle.fill")
+                            .font(.system(size: 17, weight: .bold))
+                            .foregroundColor(.pink)
                     }
-                    .padding(.horizontal, 9)
+                    .padding(.horizontal, 10)
                     .padding(.vertical, 6)
                     .background(.ultraThinMaterial, in: Capsule())
                     .overlay(
-                        Capsule().stroke(Color.white.opacity(0.15), lineWidth: 1)
+                        Capsule().stroke(Color(UIColor.separator).opacity(0.35), lineWidth: 1)
                     )
-                }
-                
-                Button(action: {
-                    viewModel.showHistorySheet = true
-                }) {
-                    HStack(spacing: 3) {
-                        Image(systemName: "clock.arrow.circlepath")
-                            .font(.system(size: 12))
-                            .foregroundColor(.accentColor)
-                        if !viewModel.history.isEmpty {
-                            Text("\(viewModel.history.count)")
-                                .font(.system(size: 11, weight: .bold, design: .rounded))
-                                .foregroundColor(.primary)
-                        }
+                    .shadow(color: Color.black.opacity(0.08), radius: 6, x: 0, y: 3)
+                    
+                    // Total badge counter for favorites
+                    if !viewModel.favorites.isEmpty {
+                        Circle()
+                            .fill(Color.red)
+                            .frame(width: 8, height: 8)
+                            .offset(x: 10, y: -10)
                     }
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 6)
-                    .background(.ultraThinMaterial, in: Capsule())
-                    .overlay(
-                        Capsule().stroke(Color.white.opacity(0.15), lineWidth: 1)
-                    )
                 }
             }
         }
@@ -608,14 +704,14 @@ struct ModernContentView: View {
     // MARK: - Main Image Canvas
     private var mainImageCanvas: some View {
         ZStack {
-            // Glass Card Container
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(.ultraThinMaterial.opacity(0.85))
+            // Glass Card Container (Zero Square Corners)
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(.ultraThinMaterial.opacity(0.88))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .stroke(Color.white.opacity(0.18), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        .stroke(Color(UIColor.separator).opacity(0.3), lineWidth: 1)
                 )
-                .shadow(color: Color.black.opacity(0.15), radius: 15, x: 0, y: 6)
+                .shadow(color: Color.black.opacity(0.18), radius: 18, x: 0, y: 8)
             
             if let _ = viewModel.errorMessage, let failedSrc = viewModel.failedSource {
                 // Apple Liquid Glass Error State
@@ -623,7 +719,7 @@ struct ModernContentView: View {
             } else if let item = viewModel.currentItem {
                 KFImage(item.imageURL)
                     .placeholder {
-                        VStack(spacing: 8) {
+                        VStack(spacing: 10) {
                             ProgressView()
                                 .scaleEffect(1.2)
                             Text("Loading HD Art...")
@@ -635,8 +731,8 @@ struct ModernContentView: View {
                     .resizable()
                     .scaledToFit()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                    .padding(8)
+                    .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                    .padding(4)
                     .scaleEffect(zoomScale)
                     .offset(x: dragOffset)
                     .gesture(
@@ -682,7 +778,7 @@ struct ModernContentView: View {
                             .padding(.horizontal, 9)
                             .padding(.vertical, 4)
                             .background(.ultraThinMaterial, in: Capsule())
-                            .foregroundColor(.primary)
+                            .foregroundColor(Color(UIColor.label))
                         
                         Spacer()
                         
@@ -723,7 +819,7 @@ struct ModernContentView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .clipped()
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
     }
     
     // MARK: - Liquid Glass Error Card
@@ -742,7 +838,7 @@ struct ModernContentView: View {
             VStack(spacing: 6) {
                 Text("Источник не отвечает")
                     .font(.system(size: 17, weight: .bold, design: .rounded))
-                    .foregroundColor(.primary)
+                    .foregroundColor(Color(UIColor.label))
                 
                 Text("Сервер \(source.displayName) временно недоступен или отклонил соединение.")
                     .font(.system(size: 13, weight: .regular, design: .rounded))
@@ -782,12 +878,12 @@ struct ModernContentView: View {
                         Text("Повторить попытку")
                     }
                     .font(.system(size: 13, weight: .medium, design: .rounded))
-                    .foregroundColor(.primary)
+                    .foregroundColor(Color(UIColor.label))
                     .frame(maxWidth: 240)
                     .padding(.vertical, 8)
                     .background(.ultraThinMaterial, in: Capsule())
                     .overlay(
-                        Capsule().stroke(Color.white.opacity(0.2), lineWidth: 1)
+                        Capsule().stroke(Color(UIColor.separator).opacity(0.35), lineWidth: 1)
                     )
                 }
                 
@@ -816,7 +912,7 @@ struct ModernContentView: View {
             }) {
                 Image(systemName: "arrow.uturn.backward")
                     .font(.system(size: 15, weight: .bold))
-                    .foregroundColor(viewModel.historyIndex > 0 ? .primary : .secondary.opacity(0.4))
+                    .foregroundColor(viewModel.historyIndex > 0 ? Color(UIColor.label) : .secondary.opacity(0.4))
                     .frame(width: 38, height: 38)
                     .background(.ultraThinMaterial, in: Circle())
             }
@@ -828,7 +924,7 @@ struct ModernContentView: View {
             }) {
                 Image(systemName: viewModel.isFavorite ? "heart.fill" : "heart")
                     .font(.system(size: 16, weight: .bold))
-                    .foregroundColor(viewModel.isFavorite ? .red : .primary)
+                    .foregroundColor(viewModel.isFavorite ? .red : Color(UIColor.label))
                     .frame(width: 38, height: 38)
                     .background(.ultraThinMaterial, in: Circle())
             }
@@ -847,7 +943,7 @@ struct ModernContentView: View {
                             )
                         )
                         .frame(width: 50, height: 50)
-                        .shadow(color: Color.pink.opacity(0.4), radius: 8, x: 0, y: 4)
+                        .shadow(color: Color.pink.opacity(0.45), radius: 8, x: 0, y: 4)
                     
                     if viewModel.isLoading {
                         ProgressView()
@@ -868,7 +964,7 @@ struct ModernContentView: View {
             }) {
                 Image(systemName: "arrow.down.to.line")
                     .font(.system(size: 16, weight: .bold))
-                    .foregroundColor(.primary)
+                    .foregroundColor(Color(UIColor.label))
                     .frame(width: 38, height: 38)
                     .background(.ultraThinMaterial, in: Circle())
             }
@@ -879,19 +975,19 @@ struct ModernContentView: View {
             }) {
                 Image(systemName: "square.and.arrow.up")
                     .font(.system(size: 15, weight: .bold))
-                    .foregroundColor(.primary)
+                    .foregroundColor(Color(UIColor.label))
                     .frame(width: 38, height: 38)
                     .background(.ultraThinMaterial, in: Circle())
             }
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 6)
+        .padding(.vertical, 5)
         .background(.ultraThinMaterial, in: Capsule())
         .overlay(
             Capsule()
-                .stroke(Color.white.opacity(0.18), lineWidth: 1)
+                .stroke(Color(UIColor.separator).opacity(0.35), lineWidth: 1)
         )
-        .shadow(color: Color.black.opacity(0.12), radius: 12, x: 0, y: 6)
+        .shadow(color: Color.black.opacity(0.14), radius: 12, x: 0, y: 6)
     }
     
     // MARK: - Toast HUD View
@@ -901,14 +997,13 @@ struct ModernContentView: View {
                 .foregroundColor(.pink)
             Text(text)
                 .font(.system(size: 13, weight: .semibold, design: .rounded))
-                .foregroundColor(.primary)
+                .foregroundColor(Color(UIColor.label))
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
         .background(.ultraThinMaterial, in: Capsule())
         .overlay(
-            Capsule()
-                .stroke(Color.white.opacity(0.2), lineWidth: 1)
+            Capsule().stroke(Color(UIColor.separator).opacity(0.35), lineWidth: 1)
         )
         .shadow(color: Color.black.opacity(0.15), radius: 10, x: 0, y: 5)
     }
@@ -925,6 +1020,246 @@ struct ModernContentView: View {
     }
 }
 
+// MARK: - Consolidated App Menu Sheet
+
+struct AppMenuSheet: View {
+    @ObservedObject var viewModel: AnimeGenViewModel
+    @Environment(\.dismiss) var dismiss
+    
+    var body: some View {
+        NavigationView {
+            List {
+                Section(header: Text("Коллекция")) {
+                    Button(action: {
+                        dismiss()
+                        viewModel.showFavoritesSheet = true
+                    }) {
+                        Label {
+                            HStack {
+                                Text("Избранное")
+                                Spacer()
+                                Text("\(viewModel.favorites.count)")
+                                    .font(.subheadline.bold())
+                                    .foregroundColor(.secondary)
+                            }
+                        } icon: {
+                            Image(systemName: "heart.fill").foregroundColor(.red)
+                        }
+                    }
+                    
+                    Button(action: {
+                        dismiss()
+                        viewModel.showHistorySheet = true
+                    }) {
+                        Label {
+                            HStack {
+                                Text("История сессии")
+                                Spacer()
+                                Text("\(viewModel.history.count)")
+                                    .font(.subheadline.bold())
+                                    .foregroundColor(.secondary)
+                            }
+                        } icon: {
+                            Image(systemName: "clock.arrow.circlepath").foregroundColor(.blue)
+                        }
+                    }
+                }
+                
+                Section(header: Text("Ориентация артов")) {
+                    Picker("Режим соотношения сторон", selection: $viewModel.orientationMode) {
+                        ForEach(OrientationMode.allCases) { mode in
+                            Label(mode.title, systemImage: mode.iconName).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.inline)
+                    .onChange(of: viewModel.orientationMode) { newMode in
+                        viewModel.setOrientationMode(newMode)
+                    }
+                }
+                
+                Section(header: Text("Настройки источников & Сети")) {
+                    Button(action: {
+                        dismiss()
+                        viewModel.showSourceManagerSheet = true
+                    }) {
+                        Label("Управление источниками (Кастомные)", systemImage: "slider.horizontal.3")
+                    }
+                    
+                    Button(action: {
+                        dismiss()
+                        viewModel.showProxySheet = true
+                    }) {
+                        Label("Настройки Прокси (Proxy)", systemImage: "network")
+                    }
+                }
+                
+                Section(header: Text("Отладка и сервис")) {
+                    Button(action: {
+                        dismiss()
+                        viewModel.showDebugSheet = true
+                    }) {
+                        Label("Консоль отладки & Пинг (v3.1-b5)", systemImage: "ladybug.fill")
+                    }
+                    
+                    Button(action: {
+                        viewModel.clearCache()
+                    }) {
+                        Label("Очистить кэш картинок", systemImage: "trash")
+                            .foregroundColor(.orange)
+                    }
+                }
+            }
+            .navigationTitle("Меню AnimeGen")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Готово") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Source Manager Sheet
+
+struct SourceManagerSheet: View {
+    @ObservedObject var viewModel: AnimeGenViewModel
+    @Environment(\.dismiss) var dismiss
+    
+    @State private var showAddSheet = false
+    @State private var newName = ""
+    @State private var newURL = ""
+    @State private var newKeyPath = "url"
+    
+    var body: some View {
+        NavigationView {
+            List {
+                Section(header: Text("Встроенные источники")) {
+                    ForEach(ImageSource.allCases.filter { $0 != .random }) { source in
+                        HStack {
+                            Image(systemName: source.iconName)
+                                .foregroundColor(.pink)
+                                .frame(width: 24)
+                            
+                            VStack(alignment: .leading) {
+                                Text(source.displayName).font(.headline)
+                                Text(source.description).font(.caption).foregroundColor(.secondary)
+                            }
+                            
+                            Spacer()
+                            
+                            Toggle("", isOn: Binding(
+                                get: { viewModel.isSourceEnabled(source) },
+                                set: { _ in viewModel.toggleSourceEnabled(source) }
+                            ))
+                            .labelsHidden()
+                        }
+                    }
+                }
+                
+                Section(header: Text("Кастомные JSON API источники")) {
+                    if viewModel.customSources.isEmpty {
+                        Text("Нет добавленных источников. Нажмите «Добавить свой», чтобы подключить любой аниме API.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    } else {
+                        ForEach(viewModel.customSources) { custom in
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(custom.name).font(.headline)
+                                Text(custom.endpointURL).font(.caption).foregroundColor(.secondary)
+                            }
+                        }
+                        .onDelete { indices in
+                            viewModel.customSources.remove(atOffsets: indices)
+                        }
+                    }
+                    
+                    Button(action: { showAddSheet = true }) {
+                        Label("Добавить свой источник (JSON API)", systemImage: "plus.circle.fill")
+                            .foregroundColor(.pink)
+                    }
+                }
+            }
+            .navigationTitle("Управление источниками")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Готово") { dismiss() }
+                }
+            }
+            .sheet(isPresented: $showAddSheet) {
+                NavigationView {
+                    Form {
+                        Section(header: Text("Параметры API")) {
+                            TextField("Название (например: Safebooru)", text: $newName)
+                            TextField("URL (https://.../api/random)", text: $newURL)
+                                .autocapitalization(.none)
+                                .keyboardType(.URL)
+                            TextField("JSON ключ картинки (например: url, file_url)", text: $newKeyPath)
+                                .autocapitalization(.none)
+                        }
+                    }
+                    .navigationTitle("Новый источник")
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Отмена") { showAddSheet = false }
+                        }
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Сохранить") {
+                                if !newName.isEmpty && !newURL.isEmpty {
+                                    viewModel.customSources.append(
+                                        CustomSourceItem(name: newName, endpointURL: newURL, jsonKeyPath: newKeyPath)
+                                    )
+                                    showAddSheet = false
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Proxy Settings Sheet
+
+struct ProxySettingsSheet: View {
+    @ObservedObject var viewModel: AnimeGenViewModel
+    @Environment(\.dismiss) var dismiss
+    
+    var body: some View {
+        NavigationView {
+            Form {
+                Section(header: Text("HTTP / SOCKS Прокси")) {
+                    Toggle("Использовать Прокси", isOn: $viewModel.isProxyEnabled)
+                    
+                    if viewModel.isProxyEnabled {
+                        TextField("Хост / IP (например: 127.0.0.1 или proxy.com)", text: $viewModel.proxyHost)
+                            .autocapitalization(.none)
+                        TextField("Порт (например: 8080)", text: $viewModel.proxyPort)
+                            .keyboardType(.numberPad)
+                    }
+                }
+                
+                Section(header: Text("Информация")) {
+                    Text("Прокси позволяет обходить блокировки и ограничения Cloudflare при подключении к источникам.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .navigationTitle("Настройки Прокси")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Готово") { dismiss() }
+                }
+            }
+        }
+    }
+}
+
 // MARK: - Source Picker Sheet
 
 struct SourcePickerSheet: View {
@@ -934,8 +1269,8 @@ struct SourcePickerSheet: View {
     var body: some View {
         NavigationView {
             List {
-                Section(header: Text("Choose Art Source").font(.caption)) {
-                    ForEach(ImageSource.allCases) { source in
+                Section(header: Text("Выберите источник артов").font(.caption)) {
+                    ForEach(ImageSource.allCases.filter { viewModel.isSourceEnabled($0) }) { source in
                         Button(action: {
                             viewModel.setSource(source)
                             dismiss()
@@ -954,7 +1289,7 @@ struct SourcePickerSheet: View {
                                     HStack {
                                         Text(source.displayName)
                                             .font(.system(size: 15, weight: .semibold, design: .rounded))
-                                            .foregroundColor(.primary)
+                                            .foregroundColor(Color(UIColor.label))
                                         
                                         Text(source.tag)
                                             .font(.system(size: 9, weight: .bold, design: .rounded))
@@ -982,13 +1317,11 @@ struct SourcePickerSheet: View {
                     }
                 }
             }
-            .navigationTitle("Image Sources")
+            .navigationTitle("Источники")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") {
-                        dismiss()
-                    }
+                    Button("Готово") { dismiss() }
                 }
             }
         }
@@ -1016,7 +1349,7 @@ struct GallerySheet: View {
                         Image(systemName: "photo.on.rectangle.angled")
                             .font(.system(size: 48))
                             .foregroundColor(.secondary)
-                        Text("No art pieces yet")
+                        Text("Пока нет сохраненных артов")
                             .font(.system(size: 16, weight: .medium, design: .rounded))
                             .foregroundColor(.secondary)
                     }
@@ -1042,7 +1375,7 @@ struct GallerySheet: View {
                                                         .padding(.horizontal, 6)
                                                         .padding(.vertical, 3)
                                                         .background(.ultraThinMaterial, in: Capsule())
-                                                        .foregroundColor(.primary)
+                                                        .foregroundColor(Color(UIColor.label))
                                                     Spacer()
                                                 }
                                                 .padding(6)
@@ -1059,9 +1392,7 @@ struct GallerySheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Close") {
-                        dismiss()
-                    }
+                    Button("Закрыть") { dismiss() }
                 }
             }
         }
@@ -1095,7 +1426,7 @@ struct DebugConsoleSheet: View {
                         Button(action: pingAllSources) {
                             HStack(spacing: 4) {
                                 Image(systemName: isPinging ? "waveform.path.ecg" : "bolt.horizontal.fill")
-                                Text(isPinging ? "Pinging..." : "Test All Sources")
+                                Text(isPinging ? "Тест..." : "Тест всех API")
                             }
                             .font(.system(size: 12, weight: .bold))
                             .padding(.horizontal, 10)
@@ -1107,11 +1438,11 @@ struct DebugConsoleSheet: View {
                         
                         Button(action: {
                             UIPasteboard.general.string = logger.allLogsFormatted
-                            viewModel.showToast("Full logs copied to Clipboard! 📋")
+                            viewModel.showToast("Логи скопированы в буфер! 📋")
                         }) {
                             HStack(spacing: 4) {
                                 Image(systemName: "doc.on.doc.fill")
-                                Text("Copy Logs")
+                                Text("Копировать")
                             }
                             .font(.system(size: 12, weight: .bold))
                             .padding(.horizontal, 10)
@@ -1122,9 +1453,7 @@ struct DebugConsoleSheet: View {
                         
                         Spacer()
                         
-                        Button(action: {
-                            viewModel.clearCache()
-                        }) {
+                        Button(action: { viewModel.clearCache() }) {
                             Image(systemName: "trash.fill")
                                 .font(.system(size: 12))
                                 .padding(7)
@@ -1132,9 +1461,7 @@ struct DebugConsoleSheet: View {
                                 .foregroundColor(.orange)
                         }
                         
-                        Button(action: {
-                            logger.clear()
-                        }) {
+                        Button(action: { logger.clear() }) {
                             Image(systemName: "xmark.bin.fill")
                                 .font(.system(size: 12))
                                 .padding(7)
@@ -1144,7 +1471,7 @@ struct DebugConsoleSheet: View {
                     }
                     
                     Toggle(isOn: $filterErrorsOnly) {
-                        Text("Show Errors & Warnings Only")
+                        Text("Показывать только ошибки")
                             .font(.system(size: 12, weight: .medium))
                             .foregroundColor(.secondary)
                     }
@@ -1153,10 +1480,10 @@ struct DebugConsoleSheet: View {
                 .padding(.vertical, 10)
                 .background(Color(UIColor.secondarySystemBackground))
                 
-                // Ping Results List if available
+                // Ping Results List
                 if !pingResults.isEmpty {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Source Status:")
+                        Text("Статус источников:")
                             .font(.system(size: 11, weight: .bold))
                             .foregroundColor(.secondary)
                         
@@ -1165,10 +1492,8 @@ struct DebugConsoleSheet: View {
                                 ForEach(Array(pingResults.keys.sorted()), id: \.self) { key in
                                     let val = pingResults[key] ?? ""
                                     HStack(spacing: 4) {
-                                        Text(key)
-                                            .font(.system(size: 10, weight: .bold))
-                                        Text(val)
-                                            .font(.system(size: 10, design: .monospaced))
+                                        Text(key).font(.system(size: 10, weight: .bold))
+                                        Text(val).font(.system(size: 10, design: .monospaced))
                                     }
                                     .padding(.horizontal, 8)
                                     .padding(.vertical, 4)
@@ -1190,7 +1515,7 @@ struct DebugConsoleSheet: View {
                         Image(systemName: "terminal")
                             .font(.system(size: 36))
                             .foregroundColor(.secondary)
-                        Text("No logs recorded yet")
+                        Text("Нет записанных логов")
                             .font(.system(size: 14, weight: .medium))
                             .foregroundColor(.secondary)
                         Spacer()
@@ -1216,7 +1541,7 @@ struct DebugConsoleSheet: View {
                                 
                                 Text(entry.message)
                                     .font(.system(size: 12, weight: .medium, design: .monospaced))
-                                    .foregroundColor(entry.isError ? .red : .primary)
+                                    .foregroundColor(entry.isError ? .red : Color(UIColor.label))
                                 
                                 if let details = entry.details, !details.isEmpty {
                                     Text(details)
@@ -1231,13 +1556,11 @@ struct DebugConsoleSheet: View {
                     .listStyle(.plain)
                 }
             }
-            .navigationTitle("Live Debug Console")
+            .navigationTitle("Консоль отладки")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Close") {
-                        dismiss()
-                    }
+                    Button("Закрыть") { dismiss() }
                 }
             }
         }
@@ -1296,10 +1619,12 @@ public class ViewController: UIViewController {
     public override func viewDidLoad() {
         super.viewDidLoad()
         
-        // Hide all storyboard legacy subviews to prevent duplicate interference
+        view.backgroundColor = .clear
         view.subviews.forEach { $0.isHidden = true }
         
         let hostingController = UIHostingController(rootView: ModernContentView())
+        hostingController.view.backgroundColor = .clear
+        
         addChild(hostingController)
         view.addSubview(hostingController.view)
         

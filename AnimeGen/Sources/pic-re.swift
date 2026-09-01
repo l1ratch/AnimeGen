@@ -14,14 +14,11 @@ struct PicReResponse: Decodable {
 
 enum PicReAPI {
     static func fetch() async throws -> AnimeArtItem {
-        guard let url = URL(string: "https://pic.re/image") else {
+        guard let url = URL(string: "https://pic.re/image.json") else {
             throw URLError(.badURL)
         }
         
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        
-        let (data, response) = try await URLSession.custom.data(for: request)
+        let (data, response) = try await URLSession.custom.data(from: url)
         guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
             throw URLError(.badServerResponse)
         }

@@ -16,7 +16,7 @@ struct NekosMoeResponse: Decodable {
 
 enum NekosMoeAPI {
     static func fetch() async throws -> AnimeArtItem {
-        guard let url = URL(string: "https://nekos.moe/api/v1/random/image?nsfw=false") else {
+        guard let url = URL(string: "https://nekos.moe/api/v1/random/image?count=1&nsfw=false") else {
             throw URLError(.badURL)
         }
         
