@@ -327,10 +327,7 @@ public class AnimeGenViewModel: ObservableObject {
                 self.toastMessage = nil
             }
         }
-    }
-}
-
-// MARK: - Modern SwiftUI UI
+    // MARK: - Modern SwiftUI UI
 
 struct ModernContentView: View {
     @StateObject private var viewModel = AnimeGenViewModel()
@@ -340,42 +337,48 @@ struct ModernContentView: View {
     
     var body: some View {
         ZStack {
-            // Ambient dynamic background blur
+            // Ambient dynamic background blur (only this layer extends behind status/home bars)
             ambientBackground
                 .ignoresSafeArea()
             
-            VStack(spacing: 14) {
+            // Safe Area Main Content
+            VStack(spacing: 8) {
                 // Top Glass Header Bar
                 topHeaderBar
-                    .padding(.horizontal, 16)
-                    .padding(.top, 8)
+                    .padding(.horizontal, 14)
+                    .padding(.top, 4)
                 
-                // Center Interactive Canvas
+                // Center Interactive HD Canvas
                 mainImageCanvas
-                    .padding(.horizontal, 16)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 2)
                 
-                // Bottom Glass Floating Toolbar Capsule
+                // Bottom Compact Floating Toolbar Capsule
                 bottomToolbarCapsule
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 12)
+                    .padding(.horizontal, 14)
+                    .padding(.bottom, 6)
             }
             
             // Toast HUD
             if let toast = viewModel.toastMessage {
-                toastView(text: toast)
-                    .transition(.move(edge: .top).combined(with: .opacity))
-                    .zIndex(100)
+                VStack {
+                    toastView(text: toast)
+                        .padding(.top, 48)
+                    Spacer()
+                }
+                .transition(.move(edge: .top).combined(with: .opacity))
+                .zIndex(100)
             }
             
             // Double-Tap Heart Overlay Animation
             if showHeartAnimation {
                 Image(systemName: "heart.fill")
-                    .font(.system(size: 84))
-                    .foregroundColor(.red.opacity(0.85))
+                    .font(.system(size: 72))
+                    .foregroundColor(.red.opacity(0.9))
                     .scaleEffect(showHeartAnimation ? 1.2 : 0.4)
                     .opacity(showHeartAnimation ? 1 : 0)
                     .animation(.spring(response: 0.3, dampingFraction: 0.5), value: showHeartAnimation)
-                    .shadow(color: .black.opacity(0.3), radius: 10, x: 0, y: 5)
+                    .shadow(color: .black.opacity(0.35), radius: 12, x: 0, y: 6)
             }
         }
         .sheet(isPresented: $viewModel.showSourceSheet) {
@@ -413,11 +416,11 @@ struct ModernContentView: View {
                     .resizable()
                     .aspectRatio(contentMode: .fill)
                     .blur(radius: 60)
-                    .opacity(0.35)
+                    .opacity(0.3)
             }
             
             LinearGradient(
-                colors: [Color.black.opacity(0.15), Color.clear, Color.black.opacity(0.3)],
+                colors: [Color.black.opacity(0.12), Color.clear, Color.black.opacity(0.25)],
                 startPoint: .top,
                 endPoint: .bottom
             )
@@ -426,69 +429,88 @@ struct ModernContentView: View {
     
     // MARK: - Top Header Bar
     private var topHeaderBar: some View {
-        HStack {
+        HStack(spacing: 8) {
             // Source Selector Button
             Button(action: {
                 viewModel.showSourceSheet = true
             }) {
-                HStack(spacing: 8) {
+                HStack(spacing: 6) {
                     Image(systemName: viewModel.selectedSource.iconName)
-                        .font(.system(size: 14, weight: .bold))
+                        .font(.system(size: 13, weight: .bold))
                         .foregroundColor(.pink)
                     
                     Text(viewModel.selectedSource.displayName)
-                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
                         .foregroundColor(.primary)
+                        .lineLimit(1)
                     
                     Image(systemName: "chevron.down")
-                        .font(.system(size: 10, weight: .bold))
+                        .font(.system(size: 9, weight: .bold))
                         .foregroundColor(.secondary)
                 }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 8)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
                 .background(.ultraThinMaterial, in: Capsule())
                 .overlay(
                     Capsule()
-                        .stroke(Color.white.opacity(0.15), lineWidth: 1)
+                        .stroke(Color.white.opacity(0.18), lineWidth: 1)
                 )
             }
             
             Spacer()
             
-            // Favorites & History Pill Buttons
-            HStack(spacing: 8) {
+            // Build Beta Badge
+            Text("v3.1-b2")
+                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background(Color.purple.opacity(0.15), in: Capsule())
+                .foregroundColor(.purple)
+            
+            // Favorites & History Compact Pills
+            HStack(spacing: 6) {
                 Button(action: {
                     viewModel.showFavoritesSheet = true
                 }) {
-                    HStack(spacing: 4) {
+                    HStack(spacing: 3) {
                         Image(systemName: "heart.fill")
-                            .font(.system(size: 13))
+                            .font(.system(size: 12))
                             .foregroundColor(.red)
                         if !viewModel.favorites.isEmpty {
                             Text("\(viewModel.favorites.count)")
-                                .font(.system(size: 12, weight: .bold, design: .rounded))
+                                .font(.system(size: 11, weight: .bold, design: .rounded))
+                                .foregroundColor(.primary)
                         }
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 7)
                     .background(.ultraThinMaterial, in: Capsule())
+                    .overlay(
+                        Capsule()
+                            .stroke(Color.white.opacity(0.15), lineWidth: 1)
+                    )
                 }
                 
                 Button(action: {
                     viewModel.showHistorySheet = true
                 }) {
-                    HStack(spacing: 4) {
+                    HStack(spacing: 3) {
                         Image(systemName: "clock.arrow.circlepath")
-                            .font(.system(size: 13))
+                            .font(.system(size: 12))
                             .foregroundColor(.accentColor)
                         if !viewModel.history.isEmpty {
                             Text("\(viewModel.history.count)")
-                                .font(.system(size: 12, weight: .bold, design: .rounded))
+                                .font(.system(size: 11, weight: .bold, design: .rounded))
+                                .foregroundColor(.primary)
                         }
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 7)
                     .background(.ultraThinMaterial, in: Capsule())
+                    .overlay(
+                        Capsule()
+                            .stroke(Color.white.opacity(0.15), lineWidth: 1)
+                    )
                 }
             }
         }
@@ -496,140 +518,147 @@ struct ModernContentView: View {
     
     // MARK: - Main Image Canvas
     private var mainImageCanvas: some View {
-        GeometryReader { geometry in
-            ZStack {
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .fill(.ultraThinMaterial)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 24, style: .continuous)
-                            .stroke(Color.white.opacity(0.12), lineWidth: 1)
-                    )
-                    .shadow(color: Color.black.opacity(0.15), radius: 20, x: 0, y: 10)
-                
-                if let item = viewModel.currentItem {
-                    KFImage(item.imageURL)
-                        .placeholder {
+        ZStack {
+            // Glass Card Canvas Container
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(.ultraThinMaterial.opacity(0.85))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .stroke(Color.white.opacity(0.18), lineWidth: 1)
+                )
+                .shadow(color: Color.black.opacity(0.15), radius: 15, x: 0, y: 6)
+            
+            if let item = viewModel.currentItem {
+                KFImage(item.imageURL)
+                    .placeholder {
+                        VStack(spacing: 8) {
                             ProgressView()
-                                .scaleEffect(1.3)
+                                .scaleEffect(1.2)
+                            Text("Loading HD Art...")
+                                .font(.system(size: 12, weight: .medium, design: .rounded))
+                                .foregroundColor(.secondary)
                         }
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .cornerRadius(20)
-                        .padding(6)
-                        .scaleEffect(zoomScale)
-                        .offset(x: dragOffset)
-                        .gesture(
-                            DragGesture()
-                                .onChanged { value in
-                                    dragOffset = value.translation.width
-                                }
-                                .onEnded { value in
-                                    if value.translation.width < -60 {
-                                        viewModel.goNext()
-                                    } else if value.translation.width > 60 {
-                                        viewModel.goPrevious()
-                                    }
-                                    withAnimation(.spring()) {
-                                        dragOffset = 0
-                                    }
-                                }
-                        )
-                        .gesture(
-                            MagnificationGesture()
-                                .onChanged { scale in
-                                    zoomScale = max(1.0, scale)
-                                }
-                                .onEnded { _ in
-                                    withAnimation(.spring()) {
-                                        zoomScale = 1.0
-                                    }
-                                }
-                        )
-                        .onTapGesture(count: 2) {
-                            viewModel.toggleFavorite()
-                            showHeartAnimation = true
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-                                showHeartAnimation = false
+                    }
+                    .fade(duration: 0.2)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .padding(6)
+                    .scaleEffect(zoomScale)
+                    .offset(x: dragOffset)
+                    .gesture(
+                        DragGesture()
+                            .onChanged { value in
+                                dragOffset = value.translation.width
                             }
-                        }
-                    
-                    // Metadata Badges (Top & Bottom of Card)
-                    VStack {
-                        HStack {
-                            Text(item.category)
-                                .font(.system(size: 11, weight: .bold, design: .rounded))
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 5)
-                                .background(.ultraThinMaterial, in: Capsule())
-                                .foregroundColor(.primary)
-                            
-                            Spacer()
-                            
-                            if item.isGIF {
-                                Text("GIF")
-                                    .font(.system(size: 10, weight: .black, design: .rounded))
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 4)
-                                    .background(Color.pink.opacity(0.85), in: Capsule())
-                                    .foregroundColor(.white)
+                            .onEnded { value in
+                                if value.translation.width < -50 {
+                                    viewModel.goNext()
+                                } else if value.translation.width > 50 {
+                                    viewModel.goPrevious()
+                                }
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                    dragOffset = 0
+                                }
                             }
+                    )
+                    .gesture(
+                        MagnificationGesture()
+                            .onChanged { scale in
+                                zoomScale = max(1.0, min(scale, 4.0))
+                            }
+                            .onEnded { _ in
+                                withAnimation(.spring()) {
+                                    zoomScale = 1.0
+                                }
+                            }
+                    )
+                    .onTapGesture(count: 2) {
+                        viewModel.toggleFavorite()
+                        showHeartAnimation = true
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                            showHeartAnimation = false
                         }
-                        .padding(14)
+                    }
+                
+                // Metadata Badges (Top & Bottom of Card)
+                VStack {
+                    HStack {
+                        Text(item.category)
+                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .padding(.horizontal, 9)
+                            .padding(.vertical, 4)
+                            .background(.ultraThinMaterial, in: Capsule())
+                            .foregroundColor(.primary)
                         
                         Spacer()
                         
-                        if let artist = item.artistName, !artist.isEmpty {
-                            HStack {
-                                Label(artist, systemImage: "paintpalette.fill")
-                                    .font(.system(size: 11, weight: .medium, design: .rounded))
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 5)
-                                    .background(.ultraThinMaterial, in: Capsule())
-                                    .foregroundColor(.secondary)
-                                Spacer()
-                            }
-                            .padding(14)
+                        if item.isGIF {
+                            Text("GIF")
+                                .font(.system(size: 9, weight: .black, design: .rounded))
+                                .padding(.horizontal, 7)
+                                .padding(.vertical, 3)
+                                .background(Color.pink.opacity(0.9), in: Capsule())
+                                .foregroundColor(.white)
                         }
                     }
-                } else if viewModel.isLoading {
-                    VStack(spacing: 12) {
-                        ProgressView()
-                            .scaleEffect(1.5)
-                        Text("Summoning anime art...")
-                            .font(.system(size: 14, weight: .medium, design: .rounded))
-                            .foregroundColor(.secondary)
-                    }
-                } else if let error = viewModel.errorMessage {
-                    VStack(spacing: 12) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.system(size: 36))
-                            .foregroundColor(.orange)
-                        Text(error)
-                            .font(.system(size: 14, weight: .medium, design: .rounded))
-                            .foregroundColor(.secondary)
-                        Button("Retry") {
-                            viewModel.loadNewImage()
+                    .padding(10)
+                    
+                    Spacer()
+                    
+                    if let artist = item.artistName, !artist.isEmpty {
+                        HStack {
+                            Label(artist, systemImage: "paintpalette.fill")
+                                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                                .padding(.horizontal, 9)
+                                .padding(.vertical, 4)
+                                .background(.ultraThinMaterial, in: Capsule())
+                                .foregroundColor(.secondary)
+                            Spacer()
                         }
-                        .buttonStyle(.borderedProminent)
-                        .tint(.pink)
+                        .padding(10)
                     }
                 }
+            } else if viewModel.isLoading {
+                VStack(spacing: 10) {
+                    ProgressView()
+                        .scaleEffect(1.3)
+                    Text("Summoning anime art...")
+                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                        .foregroundColor(.secondary)
+                }
+            } else if let error = viewModel.errorMessage {
+                VStack(spacing: 10) {
+                    Image(systemName: "exclamationmark.circle.fill")
+                        .font(.system(size: 32))
+                        .foregroundColor(.orange)
+                    Text(error)
+                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                        .foregroundColor(.secondary)
+                    Button("Retry") {
+                        viewModel.loadNewImage()
+                    }
+                    .font(.system(size: 13, weight: .semibold))
+                    .buttonStyle(.borderedProminent)
+                    .tint(.pink)
+                }
             }
-            .frame(width: geometry.size.width, height: geometry.size.height)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .clipped()
     }
     
     // MARK: - Bottom Floating Toolbar Capsule
     private var bottomToolbarCapsule: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: 12) {
             // Previous Button
             Button(action: {
                 viewModel.goPrevious()
             }) {
                 Image(systemName: "arrow.uturn.backward")
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundColor(viewModel.historyIndex > 0 ? .primary : .secondary.opacity(0.5))
-                    .frame(width: 44, height: 44)
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundColor(viewModel.historyIndex > 0 ? .primary : .secondary.opacity(0.4))
+                    .frame(width: 38, height: 38)
                     .background(.ultraThinMaterial, in: Circle())
             }
             .disabled(viewModel.historyIndex <= 0)
@@ -639,13 +668,13 @@ struct ModernContentView: View {
                 viewModel.toggleFavorite()
             }) {
                 Image(systemName: viewModel.isFavorite ? "heart.fill" : "heart")
-                    .font(.system(size: 18, weight: .bold))
+                    .font(.system(size: 16, weight: .bold))
                     .foregroundColor(viewModel.isFavorite ? .red : .primary)
-                    .frame(width: 44, height: 44)
+                    .frame(width: 38, height: 38)
                     .background(.ultraThinMaterial, in: Circle())
             }
             
-            // Generate / Next Hero Button
+            // Generate / Next Hero FAB Button
             Button(action: {
                 viewModel.loadNewImage()
             }) {
@@ -658,15 +687,16 @@ struct ModernContentView: View {
                                 endPoint: .bottomTrailing
                             )
                         )
-                        .frame(width: 62, height: 62)
-                        .shadow(color: Color.pink.opacity(0.4), radius: 10, x: 0, y: 5)
+                        .frame(width: 50, height: 50)
+                        .shadow(color: Color.pink.opacity(0.4), radius: 8, x: 0, y: 4)
                     
                     if viewModel.isLoading {
                         ProgressView()
                             .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                            .scaleEffect(0.9)
                     } else {
                         Image(systemName: "arrow.triangle.2.circlepath")
-                            .font(.system(size: 24, weight: .bold))
+                            .font(.system(size: 20, weight: .bold))
                             .foregroundColor(.white)
                     }
                 }
@@ -678,9 +708,9 @@ struct ModernContentView: View {
                 viewModel.saveToPhotos()
             }) {
                 Image(systemName: "arrow.down.to.line")
-                    .font(.system(size: 18, weight: .bold))
+                    .font(.system(size: 16, weight: .bold))
                     .foregroundColor(.primary)
-                    .frame(width: 44, height: 44)
+                    .frame(width: 38, height: 38)
                     .background(.ultraThinMaterial, in: Circle())
             }
             
@@ -689,44 +719,39 @@ struct ModernContentView: View {
                 shareCurrentArt()
             }) {
                 Image(systemName: "square.and.arrow.up")
-                    .font(.system(size: 17, weight: .bold))
+                    .font(.system(size: 15, weight: .bold))
                     .foregroundColor(.primary)
-                    .frame(width: 44, height: 44)
+                    .frame(width: 38, height: 38)
                     .background(.ultraThinMaterial, in: Circle())
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 6)
         .background(.ultraThinMaterial, in: Capsule())
         .overlay(
             Capsule()
-                .stroke(Color.white.opacity(0.15), lineWidth: 1)
+                .stroke(Color.white.opacity(0.18), lineWidth: 1)
         )
-        .shadow(color: Color.black.opacity(0.12), radius: 15, x: 0, y: 8)
+        .shadow(color: Color.black.opacity(0.12), radius: 12, x: 0, y: 6)
     }
     
     // MARK: - Toast HUD View
     private func toastView(text: String) -> some View {
-        VStack {
-            HStack(spacing: 8) {
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundColor(.pink)
-                Text(text)
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundColor(.primary)
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .background(.ultraThinMaterial, in: Capsule())
-            .overlay(
-                Capsule()
-                    .stroke(Color.white.opacity(0.2), lineWidth: 1)
-            )
-            .shadow(color: Color.black.opacity(0.15), radius: 10, x: 0, y: 5)
-            .padding(.top, 40)
-            
-            Spacer()
+        HStack(spacing: 8) {
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundColor(.pink)
+            Text(text)
+                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                .foregroundColor(.primary)
         }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .background(.ultraThinMaterial, in: Capsule())
+        .overlay(
+            Capsule()
+                .stroke(Color.white.opacity(0.2), lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(0.15), radius: 10, x: 0, y: 5)
     }
     
     private func shareCurrentArt() {
@@ -734,7 +759,7 @@ struct ModernContentView: View {
         let activityVC = UIActivityViewController(activityItems: [current.imageURL], applicationActivities: nil)
         
         if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-           let rootVC = windowScene.windows.first?.rootViewController {
+           let rootVC = windowScene.windows.first(where: { $0.isKeyWindow })?.rootViewController ?? windowScene.windows.first?.rootViewController {
             activityVC.popoverPresentationController?.sourceView = rootVC.view
             rootVC.present(activityVC, animated: true)
         }
