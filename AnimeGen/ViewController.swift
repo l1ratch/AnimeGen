@@ -157,7 +157,7 @@ public class DebugLogger: ObservableObject {
     public var allLogsFormatted: String {
         let device = UIDevice.current
         var text = "=== AnimeGen Debug Log ===\n"
-        text += "App Version: 3.1.0-beta.2 (Build 3)\n"
+        text += "App Version: 3.1.0-beta.3 (Build 4)\n"
         text += "iOS: \(device.systemName) \(device.systemVersion)\n"
         text += "Device: \(device.model)\n"
         text += "Total Logs: \(logs.count)\n"
@@ -411,51 +411,53 @@ struct ModernContentView: View {
     @State private var showHeartAnimation: Bool = false
     
     var body: some View {
-        ZStack {
-            // Ambient dynamic background blur
+        VStack(spacing: 8) {
+            // Top Header Bar
+            topHeaderBar
+                .padding(.horizontal, 16)
+                .padding(.top, 4)
+            
+            // Center Interactive HD Canvas
+            mainImageCanvas
+                .padding(.horizontal, 14)
+                .padding(.vertical, 2)
+            
+            // Bottom Compact Floating Toolbar Capsule
+            bottomToolbarCapsule
+                .padding(.horizontal, 16)
+                .padding(.bottom, 6)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(
             ambientBackground
                 .ignoresSafeArea()
-            
-            // Safe Area Main Content
-            VStack(spacing: 8) {
-                // Top Glass Header Bar
-                topHeaderBar
-                    .padding(.horizontal, 14)
-                    .padding(.top, 4)
-                
-                // Center Interactive HD Canvas
-                mainImageCanvas
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 2)
-                
-                // Bottom Compact Floating Toolbar Capsule
-                bottomToolbarCapsule
-                    .padding(.horizontal, 14)
-                    .padding(.bottom, 6)
-            }
-            
+        )
+        .overlay(
             // Toast HUD
-            if let toast = viewModel.toastMessage {
-                VStack {
+            VStack {
+                if let toast = viewModel.toastMessage {
                     toastView(text: toast)
-                        .padding(.top, 48)
-                    Spacer()
+                        .padding(.top, 8)
+                        .transition(.move(edge: .top).combined(with: .opacity))
                 }
-                .transition(.move(edge: .top).combined(with: .opacity))
-                .zIndex(100)
+                Spacer()
             }
-            
+            .animation(.spring(), value: viewModel.toastMessage)
+        )
+        .overlay(
             // Double-Tap Heart Overlay Animation
-            if showHeartAnimation {
-                Image(systemName: "heart.fill")
-                    .font(.system(size: 72))
-                    .foregroundColor(.red.opacity(0.9))
-                    .scaleEffect(showHeartAnimation ? 1.2 : 0.4)
-                    .opacity(showHeartAnimation ? 1 : 0)
-                    .animation(.spring(response: 0.3, dampingFraction: 0.5), value: showHeartAnimation)
-                    .shadow(color: .black.opacity(0.35), radius: 12, x: 0, y: 6)
+            Group {
+                if showHeartAnimation {
+                    Image(systemName: "heart.fill")
+                        .font(.system(size: 72))
+                        .foregroundColor(.red.opacity(0.9))
+                        .scaleEffect(showHeartAnimation ? 1.2 : 0.4)
+                        .opacity(showHeartAnimation ? 1 : 0)
+                        .animation(.spring(response: 0.3, dampingFraction: 0.5), value: showHeartAnimation)
+                        .shadow(color: .black.opacity(0.35), radius: 12, x: 0, y: 6)
+                }
             }
-        }
+        )
         .sheet(isPresented: $viewModel.showSourceSheet) {
             SourcePickerSheet(viewModel: viewModel)
         }
@@ -530,16 +532,15 @@ struct ModernContentView: View {
                         .font(.system(size: 9, weight: .bold))
                         .foregroundColor(.secondary)
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 7)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
                 .background(.ultraThinMaterial, in: Capsule())
                 .overlay(
-                    Capsule()
-                        .stroke(Color.white.opacity(0.18), lineWidth: 1)
+                    Capsule().stroke(Color.white.opacity(0.18), lineWidth: 1)
                 )
             }
             
-            Spacer()
+            Spacer(minLength: 4)
             
             // Build Beta Badge (Tap opens Debug Console)
             Button(action: {
@@ -548,7 +549,7 @@ struct ModernContentView: View {
                 HStack(spacing: 3) {
                     Image(systemName: "ladybug.fill")
                         .font(.system(size: 9))
-                    Text("b3")
+                    Text("b4")
                         .font(.system(size: 10, weight: .bold, design: .monospaced))
                 }
                 .padding(.horizontal, 7)
@@ -572,12 +573,11 @@ struct ModernContentView: View {
                                 .foregroundColor(.primary)
                         }
                     }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 7)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 6)
                     .background(.ultraThinMaterial, in: Capsule())
                     .overlay(
-                        Capsule()
-                            .stroke(Color.white.opacity(0.15), lineWidth: 1)
+                        Capsule().stroke(Color.white.opacity(0.15), lineWidth: 1)
                     )
                 }
                 
@@ -594,12 +594,11 @@ struct ModernContentView: View {
                                 .foregroundColor(.primary)
                         }
                     }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 7)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 6)
                     .background(.ultraThinMaterial, in: Capsule())
                     .overlay(
-                        Capsule()
-                            .stroke(Color.white.opacity(0.15), lineWidth: 1)
+                        Capsule().stroke(Color.white.opacity(0.15), lineWidth: 1)
                     )
                 }
             }
@@ -609,11 +608,11 @@ struct ModernContentView: View {
     // MARK: - Main Image Canvas
     private var mainImageCanvas: some View {
         ZStack {
-            // Glass Card Canvas Container
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
+            // Glass Card Container
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
                 .fill(.ultraThinMaterial.opacity(0.85))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
                         .stroke(Color.white.opacity(0.18), lineWidth: 1)
                 )
                 .shadow(color: Color.black.opacity(0.15), radius: 15, x: 0, y: 6)
@@ -634,9 +633,10 @@ struct ModernContentView: View {
                     }
                     .fade(duration: 0.2)
                     .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    .padding(6)
+                    .scaledToFit()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .padding(8)
                     .scaleEffect(zoomScale)
                     .offset(x: dragOffset)
                     .gesture(
@@ -674,7 +674,7 @@ struct ModernContentView: View {
                         }
                     }
                 
-                // Metadata Badges
+                // Metadata Badges Inside the Card
                 VStack {
                     HStack {
                         Text(item.category)
@@ -1295,6 +1295,9 @@ public class ViewController: UIViewController {
     
     public override func viewDidLoad() {
         super.viewDidLoad()
+        
+        // Hide all storyboard legacy subviews to prevent duplicate interference
+        view.subviews.forEach { $0.isHidden = true }
         
         let hostingController = UIHostingController(rootView: ModernContentView())
         addChild(hostingController)
