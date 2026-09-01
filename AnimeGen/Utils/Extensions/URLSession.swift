@@ -4,8 +4,7 @@
 //
 
 import Foundation
-import CFNetwork
-import CoreFoundation
+import Kingfisher
 
 public struct ProxyConfig: Codable, Equatable {
     public var isEnabled: Bool = false
@@ -32,6 +31,23 @@ public struct ProxyConfig: Codable, Equatable {
     }
 }
 
+public final class AppProxySessionDelegate: NSObject, URLSessionDelegate, URLSessionTaskDelegate {
+    public static let shared = AppProxySessionDelegate()
+    
+    public func urlSession(_ session: URLSession, task: URLSessionTask, didReceive challenge: URLAuthenticationChallenge, completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
+        if challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodHTTPProxy ||
+           challenge.protectionSpace.isProxy {
+            let proxy = AppNetworkManager.currentProxy
+            if !proxy.username.isEmpty {
+                let credential = URLCredential(user: proxy.username, password: proxy.password, persistence: .forSession)
+                completionHandler(.useCredential, credential)
+                return
+            }
+        }
+        completionHandler(.performDefaultHandling, nil)
+    }
+}
+
 public enum AppNetworkManager {
     public static var currentProxy: ProxyConfig = {
         if let data = UserDefaults.standard.data(forKey: "app_proxy_config_v1"),
@@ -46,36 +62,46 @@ public enum AppNetworkManager {
         if let encoded = try? JSONEncoder().encode(config) {
             UserDefaults.standard.set(encoded, forKey: "app_proxy_config_v1")
         }
+        syncWithKingfisher()
     }
     
-    public static func makeSession() -> URLSession {
+    public static func syncWithKingfisher() {
+        let config = makeConfiguration(for: currentProxy)
+        KingfisherManager.shared.downloader.sessionConfiguration = config
+    }
+    
+    public static func makeConfiguration(for proxy: ProxyConfig) -> URLSessionConfiguration {
         let configuration = URLSessionConfiguration.default
-        configuration.timeoutIntervalForRequest = 6.0
-        configuration.timeoutIntervalForResource = 15.0
+        configuration.timeoutIntervalForRequest = 8.0
+        configuration.timeoutIntervalForResource = 20.0
         configuration.httpAdditionalHeaders = [
             "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Safari/604.1",
             "Accept": "application/json, image/*, */*"
         ]
         
-        if currentProxy.isEnabled && !currentProxy.host.isEmpty && currentProxy.port > 0 {
+        if proxy.isEnabled && !proxy.host.isEmpty && proxy.port > 0 {
             var proxyDict: [AnyHashable: Any] = [:]
             
-            if currentProxy.isSOCKS {
+            if proxy.isSOCKS {
                 proxyDict["SOCKSEnable"] = 1
-                proxyDict["SOCKSProxy"] = currentProxy.host
-                proxyDict["SOCKSPort"] = currentProxy.port
+                proxyDict["SOCKSProxy"] = proxy.host
+                proxyDict["SOCKSPort"] = proxy.port
+                if !proxy.username.isEmpty {
+                    proxyDict["SOCKSUser"] = proxy.username
+                    proxyDict["SOCKSPassword"] = proxy.password
+                }
             } else {
                 proxyDict["HTTPEnable"] = 1
-                proxyDict["HTTPProxy"] = currentProxy.host
-                proxyDict["HTTPPort"] = currentProxy.port
+                proxyDict["HTTPProxy"] = proxy.host
+                proxyDict["HTTPPort"] = proxy.port
                 proxyDict["HTTPSEnable"] = 1
-                proxyDict["HTTPSProxy"] = currentProxy.host
-                proxyDict["HTTPSPort"] = currentProxy.port
+                proxyDict["HTTPSProxy"] = proxy.host
+                proxyDict["HTTPSPort"] = proxy.port
             }
             configuration.connectionProxyDictionary = proxyDict
             
-            if !currentProxy.username.isEmpty {
-                let authString = "\(currentProxy.username):\(currentProxy.password)"
+            if !proxy.username.isEmpty {
+                let authString = "\(proxy.username):\(proxy.password)"
                 if let authData = authString.data(using: .utf8) {
                     let base64Auth = authData.base64EncodedString()
                     var headers = configuration.httpAdditionalHeaders ?? [:]
@@ -85,7 +111,35 @@ public enum AppNetworkManager {
             }
         }
         
-        return URLSession(configuration: configuration)
+        return configuration
+    }
+    
+    public static func makeSession(for proxy: ProxyConfig = currentProxy) -> URLSession {
+        let config = makeConfiguration(for: proxy)
+        return URLSession(configuration: config, delegate: AppProxySessionDelegate.shared, delegateQueue: nil)
+    }
+    
+    public static func testProxy(config: ProxyConfig) async throws -> (latency: Double, ip: String) {
+        let testSession = makeSession(for: config)
+        guard let testURL = URL(string: "https://api.ipify.org?format=json") else {
+            throw URLError(.badURL)
+        }
+        
+        let startTime = CFAbsoluteTimeGetCurrent()
+        let (data, response) = try await testSession.data(from: testURL)
+        let latency = (CFAbsoluteTimeGetCurrent() - startTime) * 1000.0
+        
+        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+            let status = (response as? HTTPURLResponse)?.statusCode ?? -1
+            throw NSError(domain: "ProxyTest", code: status, userInfo: [NSLocalizedDescriptionKey: "HTTP Status \(status)"])
+        }
+        
+        struct IPResponse: Decodable {
+            let ip: String
+        }
+        
+        let decoded = try JSONDecoder().decode(IPResponse.self, from: data)
+        return (latency: latency, ip: decoded.ip)
     }
 }
 

@@ -573,6 +573,36 @@ public class AnimeGenViewModel: ObservableObject {
     }
 }
 
+// MARK: - Animated GIF View (60 FPS Hardware-Accelerated)
+
+struct AnimatedGIFView: UIViewRepresentable {
+    let url: URL
+    let contentMode: UIView.ContentMode
+    
+    func makeUIView(context: Context) -> AnimatedImageView {
+        let view = AnimatedImageView()
+        view.contentMode = contentMode
+        view.clipsToBounds = true
+        view.autoUpdateRunLoopMode = true
+        view.repeatCount = .infinity
+        view.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        view.setContentCompressionResistancePriority(.defaultLow, for: .vertical)
+        view.kf.indicatorType = .activity
+        return view
+    }
+    
+    func updateUIView(_ uiView: AnimatedImageView, context: Context) {
+        uiView.contentMode = contentMode
+        uiView.kf.setImage(
+            with: url,
+            options: [
+                .transition(.fade(0.15)),
+                .cacheOriginalImage
+            ]
+        )
+    }
+}
+
 // MARK: - Modern SwiftUI UI
 
 struct ModernContentView: View {
@@ -752,7 +782,7 @@ struct ModernContentView: View {
                     Image(systemName: viewModel.orientationMode.iconName)
                         .font(.system(size: 11, weight: .bold))
                     Text(viewModel.orientationMode.shortTitle)
-                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                        .font(.system(size: 11, weight: .bold, design: .monospaced))
                 }
                 .padding(.horizontal, 9)
                 .padding(.vertical, 7)
@@ -764,32 +794,19 @@ struct ModernContentView: View {
                 .shadow(color: Color.black.opacity(0.08), radius: 6, x: 0, y: 3)
             }
             
-            // Consolidated App Menu Button
+            // Action Menu Button
             Button(action: {
                 viewModel.showAppMenuSheet = true
             }) {
-                ZStack {
-                    HStack(spacing: 4) {
-                        Image(systemName: "ellipsis.circle.fill")
-                            .font(.system(size: 17, weight: .bold))
-                            .foregroundColor(.pink)
-                    }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(.ultraThinMaterial, in: Capsule())
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(Color(UIColor.label))
+                    .padding(8)
+                    .background(.ultraThinMaterial, in: Circle())
                     .overlay(
-                        Capsule().stroke(Color(UIColor.separator).opacity(0.35), lineWidth: 1)
+                        Circle().stroke(Color(UIColor.separator).opacity(0.35), lineWidth: 1)
                     )
                     .shadow(color: Color.black.opacity(0.08), radius: 6, x: 0, y: 3)
-                    
-                    // Total badge counter for favorites
-                    if !viewModel.favorites.isEmpty {
-                        Circle()
-                            .fill(Color.red)
-                            .frame(width: 8, height: 8)
-                            .offset(x: 10, y: -10)
-                    }
-                }
             }
         }
     }
@@ -812,7 +829,14 @@ struct ModernContentView: View {
                     liquidGlassErrorView(source: failedSrc)
                 } else if let item = viewModel.currentItem {
                     ZStack {
-                        if viewModel.scaleMode == .fill {
+                        if item.isGIF || item.imageURL.absoluteString.lowercased().hasSuffix(".gif") {
+                            AnimatedGIFView(
+                                url: item.imageURL,
+                                contentMode: viewModel.scaleMode == .fill ? .scaleAspectFill : .scaleAspectFit
+                            )
+                            .frame(width: geo.size.width, height: geo.size.height)
+                            .clipped()
+                        } else if viewModel.scaleMode == .fill {
                             KFImage(item.imageURL)
                                 .placeholder { loadingSpinner }
                                 .fade(duration: 0.2)
@@ -1414,7 +1438,7 @@ struct SourceManagerSheet: View {
     }
 }
 
-// MARK: - Proxy Settings Sheet with Full Auth
+// MARK: - Proxy Settings Sheet with Live Diagnostics & Full Auth
 
 struct ProxySettingsSheet: View {
     @ObservedObject var viewModel: AnimeGenViewModel
@@ -1426,6 +1450,12 @@ struct ProxySettingsSheet: View {
     @State private var isSOCKS: Bool = false
     @State private var username: String = ""
     @State private var password: String = ""
+    @State private var showPassword: Bool = false
+    
+    // Live Diagnostics State
+    @State private var isTesting: Bool = false
+    @State private var testStatus: String? = nil
+    @State private var testIsSuccess: Bool = false
     
     var body: some View {
         NavigationView {
@@ -1444,11 +1474,11 @@ struct ProxySettingsSheet: View {
                 
                 if isEnabled {
                     Section(header: Text("Параметры подключения")) {
-                        TextField("Хост / IP (например: 127.0.0.1 или proxy.com)", text: $proxyHost)
+                        TextField("Хост / IP (например: 88.216.19.98)", text: $proxyHost)
                             .autocapitalization(.none)
                             .disableAutocorrection(true)
                         
-                        TextField("Порт (например: 8080 или 1080)", text: $proxyPort)
+                        TextField("Порт (например: 19441 или 8080)", text: $proxyPort)
                             .keyboardType(.numberPad)
                     }
                     
@@ -1457,12 +1487,55 @@ struct ProxySettingsSheet: View {
                             .autocapitalization(.none)
                             .disableAutocorrection(true)
                         
-                        SecureField("Пароль (Password)", text: $password)
+                        HStack {
+                            if showPassword {
+                                TextField("Пароль (Password)", text: $password)
+                                    .autocapitalization(.none)
+                                    .disableAutocorrection(true)
+                            } else {
+                                SecureField("Пароль (Password)", text: $password)
+                            }
+                            
+                            Button(action: { showPassword.toggle() }) {
+                                Image(systemName: showPassword ? "eye.slash.fill" : "eye.fill")
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+                    
+                    Section(header: Text("Проверка подключения")) {
+                        Button(action: runProxyTest) {
+                            HStack {
+                                if isTesting {
+                                    ProgressView()
+                                        .scaleEffect(0.9)
+                                        .padding(.trailing, 4)
+                                    Text("Проверка соединения...")
+                                } else {
+                                    Image(systemName: "bolt.horizontal.circle.fill")
+                                        .foregroundColor(.pink)
+                                    Text("Проверить прокси (Ping & IP)")
+                                        .fontWeight(.semibold)
+                                }
+                            }
+                        }
+                        .disabled(isTesting || proxyHost.isEmpty)
+                        
+                        if let status = testStatus {
+                            HStack(spacing: 8) {
+                                Image(systemName: testIsSuccess ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                                    .foregroundColor(testIsSuccess ? .green : .red)
+                                Text(status)
+                                    .font(.system(size: 13, weight: .medium))
+                                    .foregroundColor(testIsSuccess ? .green : .red)
+                            }
+                            .padding(.vertical, 4)
+                        }
                     }
                 }
                 
                 Section(header: Text("Информация")) {
-                    Text("Прокси перенаправляет все API-запросы приложения через удаленный сервер для обхода блокировок и проверок Cloudflare.")
+                    Text("Прокси перенаправляет все сетевые запросы приложения и загрузку изображений через защищенный сервер.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -1487,15 +1560,46 @@ struct ProxySettingsSheet: View {
                         let portInt = Int(proxyPort) ?? 8080
                         viewModel.proxyConfig = ProxyConfig(
                             isEnabled: isEnabled,
-                            host: proxyHost,
+                            host: proxyHost.trimmingCharacters(in: .whitespacesAndNewlines),
                             port: portInt,
                             isSOCKS: isSOCKS,
-                            username: username,
-                            password: password
+                            username: username.trimmingCharacters(in: .whitespacesAndNewlines),
+                            password: password.trimmingCharacters(in: .whitespacesAndNewlines)
                         )
                         viewModel.saveProxySettings()
                         dismiss()
                     }
+                }
+            }
+        }
+    }
+    
+    private func runProxyTest() {
+        isTesting = true
+        testStatus = nil
+        let portInt = Int(proxyPort) ?? 8080
+        let testConfig = ProxyConfig(
+            isEnabled: true,
+            host: proxyHost.trimmingCharacters(in: .whitespacesAndNewlines),
+            port: portInt,
+            isSOCKS: isSOCKS,
+            username: username.trimmingCharacters(in: .whitespacesAndNewlines),
+            password: password.trimmingCharacters(in: .whitespacesAndNewlines)
+        )
+        
+        Task {
+            do {
+                let result = try await AppNetworkManager.testProxy(config: testConfig)
+                await MainActor.run {
+                    self.isTesting = false
+                    self.testIsSuccess = true
+                    self.testStatus = "🟢 Прокси активен! Задержка: \(Int(result.latency))ms, Внешний IP: \(result.ip)"
+                }
+            } catch {
+                await MainActor.run {
+                    self.isTesting = false
+                    self.testIsSuccess = false
+                    self.testStatus = "🔴 Ошибка: \(error.localizedDescription)"
                 }
             }
         }
@@ -1641,7 +1745,7 @@ struct GallerySheet: View {
     }
 }
 
-// MARK: - Hidden Debug Console Sheet
+// MARK: - Hidden Debug Console Sheet with Pastebin Log Sharing
 
 struct DebugConsoleSheet: View {
     @ObservedObject var viewModel: AnimeGenViewModel
@@ -1650,6 +1754,7 @@ struct DebugConsoleSheet: View {
     
     @State private var pingResults: [String: String] = [:]
     @State private var isPinging: Bool = false
+    @State private var isSharingPastebin: Bool = false
     @State private var filterErrorsOnly: Bool = false
     
     var filteredLogs: [DebugLogEntry] {
@@ -1668,32 +1773,45 @@ struct DebugConsoleSheet: View {
                         Button(action: pingAllSources) {
                             HStack(spacing: 4) {
                                 Image(systemName: isPinging ? "waveform.path.ecg" : "bolt.horizontal.fill")
-                                Text(isPinging ? "Тест..." : "Тест всех API")
+                                Text(isPinging ? "Тест..." : "Тест API")
                             }
-                            .font(.system(size: 12, weight: .bold))
-                            .padding(.horizontal, 10)
+                            .font(.system(size: 11, weight: .bold))
+                            .padding(.horizontal, 9)
                             .padding(.vertical, 6)
                             .background(Color.blue.opacity(0.15), in: Capsule())
                             .foregroundColor(.blue)
                         }
                         .disabled(isPinging)
                         
-                        Button(action: {
-                            UIPasteboard.general.string = logger.allLogsFormatted
-                            viewModel.showToast("Логи скопированы в буфер! 📋")
-                        }) {
+                        Button(action: shareLogsViaPastebin) {
                             HStack(spacing: 4) {
-                                Image(systemName: "doc.on.doc.fill")
-                                Text("Копировать")
+                                if isSharingPastebin {
+                                    ProgressView().scaleEffect(0.7)
+                                } else {
+                                    Image(systemName: "square.and.arrow.up.fill")
+                                }
+                                Text(isSharingPastebin ? "Отправка..." : "Поделиться (Pastebin)")
                             }
-                            .font(.system(size: 12, weight: .bold))
-                            .padding(.horizontal, 10)
+                            .font(.system(size: 11, weight: .bold))
+                            .padding(.horizontal, 9)
                             .padding(.vertical, 6)
-                            .background(Color.green.opacity(0.15), in: Capsule())
-                            .foregroundColor(.green)
+                            .background(Color.pink.opacity(0.15), in: Capsule())
+                            .foregroundColor(.pink)
                         }
+                        .disabled(isSharingPastebin)
                         
                         Spacer()
+                        
+                        Button(action: {
+                            UIPasteboard.general.string = logger.allLogsFormatted
+                            viewModel.showToast("Логи скопированы! 📋")
+                        }) {
+                            Image(systemName: "doc.on.doc.fill")
+                                .font(.system(size: 12))
+                                .padding(7)
+                                .background(Color.green.opacity(0.15), in: Circle())
+                                .foregroundColor(.green)
+                        }
                         
                         Button(action: { viewModel.clearCache() }) {
                             Image(systemName: "trash.fill")
@@ -1808,44 +1926,25 @@ struct DebugConsoleSheet: View {
         }
     }
     
-    private func pingAllSources() {
-        isPinging = true
-        pingResults.removeAll()
-        
-        let testable = ImageSource.allCases.filter { $0 != .random }
-        Task {
-            await withTaskGroup(of: (String, String).self) { group in
-                for source in testable {
-                    group.addTask {
-                        let t0 = CFAbsoluteTimeGetCurrent()
-                        do {
-                            switch source {
-                            case .nekosBest: _ = try await NekosBestAPI.fetch(orientation: viewModel.orientationMode)
-                            case .picRe: _ = try await PicReAPI.fetch(orientation: viewModel.orientationMode)
-                            case .nekoBot: _ = try await NekoBotAPI.fetch(orientation: viewModel.orientationMode)
-                            case .nekosApi: _ = try await NekosApiAPI.fetch()
-                            case .nekosLife: _ = try await NekosLifeAPI.fetch(orientation: viewModel.orientationMode)
-                            case .nekosMoe: _ = try await NekosMoeAPI.fetch()
-                            case .purr: _ = try await PurrAPI.fetch(orientation: viewModel.orientationMode)
-                            case .waifupics: _ = try await WaifuPicsAPI.fetch(orientation: viewModel.orientationMode)
-                            case .waifuIm: _ = try await WaifuImAPI.fetch()
-                            case .random: break
-                            }
-                            let ms = Int((CFAbsoluteTimeGetCurrent() - t0) * 1000)
-                            return (source.displayName, "\(ms)ms ✅")
-                        } catch {
-                            return (source.displayName, "❌")
-                        }
-                    }
-                }
-                
-                for await (name, result) in group {
-                    pingResults[name] = result
-                }
-            }
-            isPinging = false
-        }
+    private func shareLogsViaPastebin() {
+// MARK: - Global Share Sheet Helper
+
+func presentShareSheet(items: [Any]) {
+    guard let windowScene = UIApplication.shared.connectedScenes.first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene ?? UIApplication.shared.connectedScenes.first as? UIWindowScene,
+          let rootVC = windowScene.windows.first(where: { $0.isKeyWindow })?.rootViewController ?? windowScene.windows.first?.rootViewController else { return }
+    
+    var presenter = rootVC
+    while let presented = presenter.presentedViewController {
+        presenter = presented
     }
+    
+    let activityVC = UIActivityViewController(activityItems: items, applicationActivities: nil)
+    if let popover = activityVC.popoverPresentationController {
+        popover.sourceView = presenter.view
+        popover.sourceRect = CGRect(x: presenter.view.bounds.midX, y: presenter.view.bounds.midY, width: 0, height: 0)
+        popover.permittedArrowDirections = []
+    }
+    presenter.present(activityVC, animated: true)
 }
 
 // MARK: - UIKit ViewController Bridge
