@@ -257,7 +257,8 @@ public class AnimeGenViewModel: ObservableObject {
     public func saveToPhotos() {
         guard let current = currentItem else { return }
         
-        PHPhotoLibrary.requestAuthorization { status in
+        PHPhotoLibrary.requestAuthorization { [weak self] status in
+            guard let self = self else { return }
             guard status == .authorized || status == .limited else {
                 DispatchQueue.main.async {
                     self.showToast("Photos access required in Settings")
@@ -265,33 +266,57 @@ public class AnimeGenViewModel: ObservableObject {
                 return
             }
             
-            Task {
-                do {
-                    let (data, _) = try await URLSession.shared.data(from: current.imageURL)
-                    if current.isGIF || current.imageURL.pathExtension.lowercased() == "gif" {
-                        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("temp_\(UUID().uuidString).gif")
+            let url = current.imageURL
+            let isGIF = current.isGIF || url.pathExtension.lowercased() == "gif"
+            
+            let task = URLSession.shared.dataTask(with: url) { [weak self] data, _, error in
+                guard let self = self else { return }
+                guard let data = data, error == nil else {
+                    DispatchQueue.main.async {
+                        self.showToast("Failed to download image")
+                    }
+                    return
+                }
+                
+                if isGIF {
+                    let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("temp_\(UUID().uuidString).gif")
+                    do {
                         try data.write(to: tempURL)
-                        try await PHPhotoLibrary.shared().performChanges {
+                        PHPhotoLibrary.shared().performChanges({
                             let req = PHAssetCreationRequest.forAsset()
                             req.addResource(with: .photo, fileURL: tempURL, options: nil)
+                        }) { success, _ in
+                            try? FileManager.default.removeItem(at: tempURL)
+                            DispatchQueue.main.async {
+                                if success {
+                                    self.notificationFeedback.notificationOccurred(.success)
+                                    self.showToast("GIF saved to Photos! 🎉")
+                                } else {
+                                    self.showToast("Failed to save GIF")
+                                }
+                            }
                         }
-                        try? FileManager.default.removeItem(at: tempURL)
-                    } else if let image = UIImage(data: data) {
-                        try await PHPhotoLibrary.shared().performChanges {
-                            PHAssetChangeRequest.creationRequestForAsset(from: image)
+                    } catch {
+                        DispatchQueue.main.async {
+                            self.showToast("Failed to write GIF data")
                         }
                     }
-                    
-                    await MainActor.run {
-                        self.notificationFeedback.notificationOccurred(.success)
-                        self.showToast("Saved to Photos! 🎉")
-                    }
-                } catch {
-                    await MainActor.run {
-                        self.showToast("Failed to save image")
+                } else if let image = UIImage(data: data) {
+                    PHPhotoLibrary.shared().performChanges({
+                        PHAssetChangeRequest.creationRequestForAsset(from: image)
+                    }) { success, _ in
+                        DispatchQueue.main.async {
+                            if success {
+                                self.notificationFeedback.notificationOccurred(.success)
+                                self.showToast("Saved to Photos! 🎉")
+                            } else {
+                                self.showToast("Failed to save image")
+                            }
+                        }
                     }
                 }
             }
+            task.resume()
         }
     }
     

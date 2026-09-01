@@ -12,11 +12,15 @@ rm -rf build
 mkdir -p build
 cd build
 
+echo "==> Resolving Swift package dependencies..."
+xcodebuild -resolvePackageDependencies -project "$WORKING_LOCATION/$APPLICATION_NAME.xcodeproj" -clonedSourcePackagesDirPath "$WORKING_LOCATION/build/SourcePackages"
+
 echo "==> Building $APPLICATION_NAME with xcodebuild..."
 xcodebuild -project "$WORKING_LOCATION/$APPLICATION_NAME.xcodeproj" \
     -scheme "$APPLICATION_NAME" \
     -configuration Release \
     -derivedDataPath "$WORKING_LOCATION/build/DerivedDataApp" \
+    -clonedSourcePackagesDirPath "$WORKING_LOCATION/build/SourcePackages" \
     -destination 'generic/platform=iOS' \
     clean build \
     CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGN_ENTITLEMENTS="" CODE_SIGNING_ALLOWED="NO"
