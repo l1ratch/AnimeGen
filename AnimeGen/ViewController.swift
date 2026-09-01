@@ -226,7 +226,7 @@ public class DebugLogger: ObservableObject {
     public var allLogsFormatted: String {
         let device = UIDevice.current
         var text = "=== AnimeGen Debug Log ===\n"
-        text += "App Version: 3.1.0-beta.6 (Build 7)\n"
+        text += "App Version: 3.1.0-beta.8 (Build 9)\n"
         text += "iOS: \(device.systemName) \(device.systemVersion)\n"
         text += "Device: \(device.model)\n"
         text += "Total Logs: \(logs.count)\n"
@@ -283,7 +283,7 @@ public class AnimeGenViewModel: ObservableObject {
             self.selectedSource = source
         }
         
-        // Load orientation preference (default to vertical for phones!)
+        // Load orientation preference
         if let savedMode = UserDefaults.standard.string(forKey: "orientationMode"),
            let mode = OrientationMode(rawValue: savedMode) {
             self.orientationMode = mode
@@ -312,7 +312,7 @@ public class AnimeGenViewModel: ObservableObject {
         // Configure Kingfisher
         KingfisherManager.shared.downloader.downloadTimeout = 6.0
         
-        DebugLogger.shared.log(tag: "App", message: "AnimeGen v3.1.0-beta.6 initialized with source: \(selectedSource.displayName)")
+        DebugLogger.shared.log(tag: "App", message: "AnimeGen v3.1.0-beta.8 initialized with source: \(selectedSource.displayName)")
         loadNewImage()
     }
     
@@ -581,7 +581,6 @@ struct ModernContentView: View {
     @State private var dragOffset: CGFloat = 0
     @State private var zoomScale: CGFloat = 1.0
     @State private var showHeartAnimation: Bool = false
-    @State private var safariURL: URL? = nil
     
     var body: some View {
         VStack(spacing: 6) {
@@ -812,17 +811,7 @@ struct ModernContentView: View {
                 liquidGlassErrorView(source: failedSrc)
             } else if let item = viewModel.currentItem {
                 Group {
-                    if item.isGIF {
-                        KFAnimatedImage(item.imageURL)
-                            .placeholder { loadingSpinner }
-                            .fade(duration: 0.2)
-                            .onFailure { error in
-                                viewModel.handleImageDownloadError(for: item, error: error)
-                            }
-                            .aspectRatio(contentMode: viewModel.scaleMode == .fill ? .fill : .fit)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .clipped()
-                    } else if viewModel.scaleMode == .fill {
+                    if viewModel.scaleMode == .fill {
                         KFImage(item.imageURL)
                             .placeholder { loadingSpinner }
                             .fade(duration: 0.2)
@@ -1273,7 +1262,7 @@ struct AppMenuSheet: View {
                         dismiss()
                         viewModel.showDebugSheet = true
                     }) {
-                        Label("Консоль отладки & Пинг (v3.1-b7)", systemImage: "ladybug.fill")
+                        Label("Консоль отладки & Пинг (v3.1-b9)", systemImage: "ladybug.fill")
                     }
                     
                     Button(action: {

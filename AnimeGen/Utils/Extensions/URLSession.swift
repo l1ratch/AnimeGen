@@ -63,10 +63,6 @@ public enum AppNetworkManager {
             if currentProxy.isSOCKS {
                 proxyDict[kCFStreamPropertySOCKSProxyHost as String] = currentProxy.host
                 proxyDict[kCFStreamPropertySOCKSProxyPort as String] = currentProxy.port
-                if !currentProxy.username.isEmpty {
-                    proxyDict[kCFStreamPropertySOCKSUser as String] = currentProxy.username
-                    proxyDict[kCFStreamPropertySOCKSPassword as String] = currentProxy.password
-                }
             } else {
                 proxyDict[kCFNetworkProxiesHTTPEnable as String] = 1
                 proxyDict[kCFNetworkProxiesHTTPProxy as String] = currentProxy.host
@@ -74,13 +70,18 @@ public enum AppNetworkManager {
                 proxyDict[kCFNetworkProxiesHTTPSEnable as String] = 1
                 proxyDict[kCFNetworkProxiesHTTPSProxy as String] = currentProxy.host
                 proxyDict[kCFNetworkProxiesHTTPSPort as String] = currentProxy.port
-                
-                if !currentProxy.username.isEmpty {
-                    proxyDict[kCFProxyUsernameKey as String] = currentProxy.username
-                    proxyDict[kCFProxyPasswordKey as String] = currentProxy.password
-                }
             }
             configuration.connectionProxyDictionary = proxyDict
+            
+            if !currentProxy.username.isEmpty {
+                let authString = "\(currentProxy.username):\(currentProxy.password)"
+                if let authData = authString.data(using: .utf8) {
+                    let base64Auth = authData.base64EncodedString()
+                    var headers = configuration.httpAdditionalHeaders ?? [:]
+                    headers["Proxy-Authorization"] = "Basic \(base64Auth)"
+                    configuration.httpAdditionalHeaders = headers
+                }
+            }
         }
         
         return URLSession(configuration: configuration)
