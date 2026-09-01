@@ -61,15 +61,16 @@ public enum AppNetworkManager {
             var proxyDict: [AnyHashable: Any] = [:]
             
             if currentProxy.isSOCKS {
-                proxyDict[kCFStreamPropertySOCKSProxyHost as String] = currentProxy.host
-                proxyDict[kCFStreamPropertySOCKSProxyPort as String] = currentProxy.port
+                proxyDict["SOCKSEnable"] = 1
+                proxyDict["SOCKSProxy"] = currentProxy.host
+                proxyDict["SOCKSPort"] = currentProxy.port
             } else {
-                proxyDict[kCFNetworkProxiesHTTPEnable as String] = 1
-                proxyDict[kCFNetworkProxiesHTTPProxy as String] = currentProxy.host
-                proxyDict[kCFNetworkProxiesHTTPPort as String] = currentProxy.port
-                proxyDict[kCFNetworkProxiesHTTPSEnable as String] = 1
-                proxyDict[kCFNetworkProxiesHTTPSProxy as String] = currentProxy.host
-                proxyDict[kCFNetworkProxiesHTTPSPort as String] = currentProxy.port
+                proxyDict["HTTPEnable"] = 1
+                proxyDict["HTTPProxy"] = currentProxy.host
+                proxyDict["HTTPPort"] = currentProxy.port
+                proxyDict["HTTPSEnable"] = 1
+                proxyDict["HTTPSProxy"] = currentProxy.host
+                proxyDict["HTTPSPort"] = currentProxy.port
             }
             configuration.connectionProxyDictionary = proxyDict
             
