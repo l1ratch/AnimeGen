@@ -796,166 +796,169 @@ struct ModernContentView: View {
     
     // MARK: - Main Image Canvas
     private var mainImageCanvas: some View {
-        ZStack {
-            // Glass Card Container (Zero Square Corners)
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(.ultraThinMaterial.opacity(0.88))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        .stroke(Color(UIColor.separator).opacity(0.3), lineWidth: 1)
-                )
-                .shadow(color: Color.black.opacity(0.18), radius: 18, x: 0, y: 8)
-            
-            if let _ = viewModel.errorMessage, let failedSrc = viewModel.failedSource {
-                // Apple Liquid Glass Error State
-                liquidGlassErrorView(source: failedSrc)
-            } else if let item = viewModel.currentItem {
-                Group {
-                    if viewModel.scaleMode == .fill {
-                        KFImage(item.imageURL)
-                            .placeholder { loadingSpinner }
-                            .fade(duration: 0.2)
-                            .onFailure { error in
-                                viewModel.handleImageDownloadError(for: item, error: error)
-                            }
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .clipped()
-                    } else {
-                        KFImage(item.imageURL)
-                            .placeholder { loadingSpinner }
-                            .fade(duration: 0.2)
-                            .onFailure { error in
-                                viewModel.handleImageDownloadError(for: item, error: error)
-                            }
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .padding(4)
-                    }
-                }
-                .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-                .scaleEffect(zoomScale)
-                .offset(x: dragOffset)
-                .gesture(
-                    DragGesture()
-                        .onChanged { value in
-                            dragOffset = value.translation.width
-                        }
-                        .onEnded { value in
-                            if value.translation.width < -50 {
-                                viewModel.goNext()
-                            } else if value.translation.width > 50 {
-                                viewModel.goPrevious()
-                            }
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                dragOffset = 0
-                            }
-                        }
-                )
-                .gesture(
-                    MagnificationGesture()
-                        .onChanged { scale in
-                            zoomScale = max(1.0, min(scale, 4.0))
-                        }
-                        .onEnded { _ in
-                            withAnimation(.spring()) {
-                                zoomScale = 1.0
-                            }
-                        }
-                )
-                .onTapGesture(count: 2) {
-                    viewModel.toggleFavorite()
-                    showHeartAnimation = true
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-                        showHeartAnimation = false
-                    }
-                }
+        GeometryReader { geo in
+            ZStack {
+                // Glass Card Container (Zero Square Corners)
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .fill(.ultraThinMaterial.opacity(0.88))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 24, style: .continuous)
+                            .stroke(Color(UIColor.separator).opacity(0.3), lineWidth: 1)
+                    )
+                    .shadow(color: Color.black.opacity(0.18), radius: 18, x: 0, y: 8)
                 
-                // Metadata Badges & Fill/Fit Mode Switcher inside the Card
-                VStack {
-                    HStack(spacing: 6) {
-                        Text(item.category)
-                            .font(.system(size: 11, weight: .bold, design: .rounded))
-                            .padding(.horizontal, 9)
-                            .padding(.vertical, 4)
-                            .background(.ultraThinMaterial, in: Capsule())
-                            .foregroundColor(Color(UIColor.label))
-                            .shadow(color: .black.opacity(0.12), radius: 4, x: 0, y: 2)
-                        
-                        Spacer()
-                        
-                        // Fill vs Fit Mode Quick Switcher Button
-                        Button(action: {
-                            viewModel.toggleScaleMode()
-                        }) {
-                            HStack(spacing: 3) {
-                                Image(systemName: viewModel.scaleMode.iconName)
-                                    .font(.system(size: 10, weight: .bold))
-                                Text(viewModel.scaleMode.title)
-                                    .font(.system(size: 9, weight: .bold, design: .rounded))
-                            }
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(.ultraThinMaterial, in: Capsule())
-                            .foregroundColor(Color(UIColor.label))
-                            .shadow(color: .black.opacity(0.12), radius: 4, x: 0, y: 2)
-                        }
-                        
-                        if item.isGIF {
-                            Text("GIF")
-                                .font(.system(size: 9, weight: .black, design: .rounded))
-                                .padding(.horizontal, 7)
-                                .padding(.vertical, 4)
-                                .background(Color.pink.opacity(0.9), in: Capsule())
-                                .foregroundColor(.white)
-                                .shadow(color: .black.opacity(0.12), radius: 4, x: 0, y: 2)
+                if let _ = viewModel.errorMessage, let failedSrc = viewModel.failedSource {
+                    // Apple Liquid Glass Error State
+                    liquidGlassErrorView(source: failedSrc)
+                } else if let item = viewModel.currentItem {
+                    ZStack {
+                        if viewModel.scaleMode == .fill {
+                            KFImage(item.imageURL)
+                                .placeholder { loadingSpinner }
+                                .fade(duration: 0.2)
+                                .onFailure { error in
+                                    viewModel.handleImageDownloadError(for: item, error: error)
+                                }
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .frame(width: geo.size.width, height: geo.size.height)
+                                .clipped()
+                        } else {
+                            KFImage(item.imageURL)
+                                .placeholder { loadingSpinner }
+                                .fade(duration: 0.2)
+                                .onFailure { error in
+                                    viewModel.handleImageDownloadError(for: item, error: error)
+                                }
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: geo.size.width, height: geo.size.height)
+                                .padding(4)
                         }
                     }
-                    .padding(10)
-                    
-                    Spacer()
-                    
-                    if let artist = item.artistName, !artist.isEmpty {
-                        HStack {
-                            Button(action: {
-                                if let url = item.artistURL ?? item.sourceURL {
-                                    openSafari(url: url)
+                    .frame(width: geo.size.width, height: geo.size.height)
+                    .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                    .scaleEffect(zoomScale)
+                    .offset(x: dragOffset)
+                    .gesture(
+                        DragGesture()
+                            .onChanged { value in
+                                dragOffset = value.translation.width
+                            }
+                            .onEnded { value in
+                                if value.translation.width < -50 {
+                                    viewModel.goNext()
+                                } else if value.translation.width > 50 {
+                                    viewModel.goPrevious()
                                 }
-                            }) {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "paintpalette.fill")
-                                    Text(artist)
-                                    if item.artistURL != nil || item.sourceURL != nil {
-                                        Image(systemName: "arrow.up.right")
-                                            .font(.system(size: 8))
-                                    }
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                    dragOffset = 0
                                 }
-                                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                            }
+                    )
+                    .gesture(
+                        MagnificationGesture()
+                            .onChanged { scale in
+                                zoomScale = max(1.0, min(scale, 4.0))
+                            }
+                            .onEnded { _ in
+                                withAnimation(.spring()) {
+                                    zoomScale = 1.0
+                                }
+                            }
+                    )
+                    .onTapGesture(count: 2) {
+                        viewModel.toggleFavorite()
+                        showHeartAnimation = true
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                            showHeartAnimation = false
+                        }
+                    }
+                    
+                    // Metadata Badges & Fill/Fit Mode Switcher inside the Card
+                    VStack {
+                        HStack(spacing: 6) {
+                            Text(item.category)
+                                .font(.system(size: 11, weight: .bold, design: .rounded))
                                 .padding(.horizontal, 9)
                                 .padding(.vertical, 4)
                                 .background(.ultraThinMaterial, in: Capsule())
-                                .foregroundColor(.secondary)
+                                .foregroundColor(Color(UIColor.label))
+                                .shadow(color: .black.opacity(0.12), radius: 4, x: 0, y: 2)
+                            
+                            Spacer()
+                            
+                            // Fill vs Fit Mode Quick Switcher Button
+                            Button(action: {
+                                viewModel.toggleScaleMode()
+                            }) {
+                                HStack(spacing: 3) {
+                                    Image(systemName: viewModel.scaleMode.iconName)
+                                        .font(.system(size: 10, weight: .bold))
+                                    Text(viewModel.scaleMode.title)
+                                        .font(.system(size: 9, weight: .bold, design: .rounded))
+                                }
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(.ultraThinMaterial, in: Capsule())
+                                .foregroundColor(Color(UIColor.label))
                                 .shadow(color: .black.opacity(0.12), radius: 4, x: 0, y: 2)
                             }
-                            Spacer()
+                            
+                            if item.isGIF {
+                                Text("GIF")
+                                    .font(.system(size: 9, weight: .black, design: .rounded))
+                                    .padding(.horizontal, 7)
+                                    .padding(.vertical, 4)
+                                    .background(Color.pink.opacity(0.9), in: Capsule())
+                                    .foregroundColor(.white)
+                                    .shadow(color: .black.opacity(0.12), radius: 4, x: 0, y: 2)
+                            }
                         }
                         .padding(10)
+                        
+                        Spacer()
+                        
+                        if let artist = item.artistName, !artist.isEmpty {
+                            HStack {
+                                Button(action: {
+                                    if let url = item.artistURL ?? item.sourceURL {
+                                        openSafari(url: url)
+                                    }
+                                }) {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "paintpalette.fill")
+                                        Text(artist)
+                                        if item.artistURL != nil || item.sourceURL != nil {
+                                            Image(systemName: "arrow.up.right")
+                                                .font(.system(size: 8))
+                                        }
+                                    }
+                                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                                    .padding(.horizontal, 9)
+                                    .padding(.vertical, 4)
+                                    .background(.ultraThinMaterial, in: Capsule())
+                                    .foregroundColor(.secondary)
+                                    .shadow(color: .black.opacity(0.12), radius: 4, x: 0, y: 2)
+                                }
+                                Spacer()
+                            }
+                            .padding(10)
+                        }
+                    }
+                } else if viewModel.isLoading {
+                    VStack(spacing: 10) {
+                        ProgressView()
+                            .scaleEffect(1.3)
+                        Text("Summoning anime art...")
+                            .font(.system(size: 13, weight: .medium, design: .rounded))
+                            .foregroundColor(.secondary)
                     }
                 }
-            } else if viewModel.isLoading {
-                VStack(spacing: 10) {
-                    ProgressView()
-                        .scaleEffect(1.3)
-                    Text("Summoning anime art...")
-                        .font(.system(size: 13, weight: .medium, design: .rounded))
-                        .foregroundColor(.secondary)
-                }
             }
+            .frame(width: geo.size.width, height: geo.size.height)
+            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
     }
     
     private var loadingSpinner: some View {
