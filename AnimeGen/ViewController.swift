@@ -226,7 +226,7 @@ public class DebugLogger: ObservableObject {
     public var allLogsFormatted: String {
         let device = UIDevice.current
         var text = "=== AnimeGen Debug Log ===\n"
-        text += "App Version: 3.1.0-beta.5 (Build 6)\n"
+        text += "App Version: 3.1.0-beta.6 (Build 7)\n"
         text += "iOS: \(device.systemName) \(device.systemVersion)\n"
         text += "Device: \(device.model)\n"
         text += "Total Logs: \(logs.count)\n"
@@ -312,7 +312,7 @@ public class AnimeGenViewModel: ObservableObject {
         // Configure Kingfisher
         KingfisherManager.shared.downloader.downloadTimeout = 6.0
         
-        DebugLogger.shared.log(tag: "App", message: "AnimeGen v3.1.0-beta.5 initialized with source: \(selectedSource.displayName)")
+        DebugLogger.shared.log(tag: "App", message: "AnimeGen v3.1.0-beta.6 initialized with source: \(selectedSource.displayName)")
         loadNewImage()
     }
     
@@ -581,6 +581,7 @@ struct ModernContentView: View {
     @State private var dragOffset: CGFloat = 0
     @State private var zoomScale: CGFloat = 1.0
     @State private var showHeartAnimation: Bool = false
+    @State private var safariURL: URL? = nil
     
     var body: some View {
         VStack(spacing: 6) {
@@ -811,7 +812,17 @@ struct ModernContentView: View {
                 liquidGlassErrorView(source: failedSrc)
             } else if let item = viewModel.currentItem {
                 Group {
-                    if viewModel.scaleMode == .fill {
+                    if item.isGIF {
+                        KFAnimatedImage(item.imageURL)
+                            .placeholder { loadingSpinner }
+                            .fade(duration: 0.2)
+                            .onFailure { error in
+                                viewModel.handleImageDownloadError(for: item, error: error)
+                            }
+                            .aspectRatio(contentMode: viewModel.scaleMode == .fill ? .fill : .fit)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .clipped()
+                    } else if viewModel.scaleMode == .fill {
                         KFImage(item.imageURL)
                             .placeholder { loadingSpinner }
                             .fade(duration: 0.2)
@@ -919,13 +930,26 @@ struct ModernContentView: View {
                     
                     if let artist = item.artistName, !artist.isEmpty {
                         HStack {
-                            Label(artist, systemImage: "paintpalette.fill")
+                            Button(action: {
+                                if let url = item.artistURL ?? item.sourceURL {
+                                    openSafari(url: url)
+                                }
+                            }) {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "paintpalette.fill")
+                                    Text(artist)
+                                    if item.artistURL != nil || item.sourceURL != nil {
+                                        Image(systemName: "arrow.up.right")
+                                            .font(.system(size: 8))
+                                    }
+                                }
                                 .font(.system(size: 10, weight: .semibold, design: .rounded))
                                 .padding(.horizontal, 9)
                                 .padding(.vertical, 4)
                                 .background(.ultraThinMaterial, in: Capsule())
                                 .foregroundColor(.secondary)
                                 .shadow(color: .black.opacity(0.12), radius: 4, x: 0, y: 2)
+                            }
                             Spacer()
                         }
                         .padding(10)
@@ -1141,6 +1165,14 @@ struct ModernContentView: View {
         .shadow(color: Color.black.opacity(0.15), radius: 10, x: 0, y: 5)
     }
     
+    private func openSafari(url: URL) {
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+           let rootVC = windowScene.windows.first(where: { $0.isKeyWindow })?.rootViewController ?? windowScene.windows.first?.rootViewController {
+            let safariVC = SFSafariViewController(url: url)
+            rootVC.present(safariVC, animated: true)
+        }
+    }
+    
     private func shareCurrentArt() {
         guard let current = viewModel.currentItem else { return }
         let activityVC = UIActivityViewController(activityItems: [current.imageURL], applicationActivities: nil)
@@ -1241,7 +1273,7 @@ struct AppMenuSheet: View {
                         dismiss()
                         viewModel.showDebugSheet = true
                     }) {
-                        Label("Консоль отладки & Пинг (v3.1-b6)", systemImage: "ladybug.fill")
+                        Label("Консоль отладки & Пинг (v3.1-b7)", systemImage: "ladybug.fill")
                     }
                     
                     Button(action: {
@@ -1796,14 +1828,14 @@ struct DebugConsoleSheet: View {
                         let t0 = CFAbsoluteTimeGetCurrent()
                         do {
                             switch source {
-                            case .nekosBest: _ = try await NekosBestAPI.fetch()
-                            case .picRe: _ = try await PicReAPI.fetch()
-                            case .nekoBot: _ = try await NekoBotAPI.fetch()
+                            case .nekosBest: _ = try await NekosBestAPI.fetch(orientation: viewModel.orientationMode)
+                            case .picRe: _ = try await PicReAPI.fetch(orientation: viewModel.orientationMode)
+                            case .nekoBot: _ = try await NekoBotAPI.fetch(orientation: viewModel.orientationMode)
                             case .nekosApi: _ = try await NekosApiAPI.fetch()
-                            case .nekosLife: _ = try await NekosLifeAPI.fetch()
+                            case .nekosLife: _ = try await NekosLifeAPI.fetch(orientation: viewModel.orientationMode)
                             case .nekosMoe: _ = try await NekosMoeAPI.fetch()
-                            case .purr: _ = try await PurrAPI.fetch()
-                            case .waifupics: _ = try await WaifuPicsAPI.fetch()
+                            case .purr: _ = try await PurrAPI.fetch(orientation: viewModel.orientationMode)
+                            case .waifupics: _ = try await WaifuPicsAPI.fetch(orientation: viewModel.orientationMode)
                             case .waifuIm: _ = try await WaifuImAPI.fetch()
                             case .random: break
                             }

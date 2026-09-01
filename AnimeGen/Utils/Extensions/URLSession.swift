@@ -4,6 +4,8 @@
 //
 
 import Foundation
+import CFNetwork
+import CoreFoundation
 
 public struct ProxyConfig: Codable, Equatable {
     public var isEnabled: Bool = false
