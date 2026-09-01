@@ -31,9 +31,17 @@ jobs:
     - name: Print failure log
       if: failure()
       run: |
-        echo "=== XCODEBUILD FAILED (Last 100 lines): ==="
-        tail -n 100 build_output.log || true
+        echo "=== XCODEBUILD FAILED (Last 150 lines): ==="
+        tail -n 150 build_output.log || true
       shell: bash
+
+    - name: Upload Build Log
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: Build-Logs
+        path: build_output.log
+        if-no-files-found: ignore
 
     - name: Upload IPA Artifact
       uses: actions/upload-artifact@v4
