@@ -37,7 +37,7 @@ enum WaifuImAPI {
             throw NSError(
                 domain: "WaifuImAPI",
                 code: (response as? HTTPURLResponse)?.statusCode ?? 503,
-                userInfo: [NSLocalizedDescriptionKey: "Сервер Waifu.im на техническом обслуживании (Cloudflare)."]
+                userInfo: [NSLocalizedDescriptionKey: "Waifu.im server is currently under maintenance (Cloudflare protection)."]
             )
         }
         

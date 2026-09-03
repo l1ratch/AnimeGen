@@ -119,9 +119,9 @@ public enum OrientationMode: String, CaseIterable, Identifiable, Codable {
     
     public var title: String {
         switch self {
-        case .vertical: return "Вертикальные (9:16)"
-        case .any: return "Любой формат (Mix)"
-        case .horizontal: return "Горизонтальные (16:9)"
+        case .vertical: return "Vertical (9:16)"
+        case .any: return "Any Aspect (Mix)"
+        case .horizontal: return "Horizontal (16:9)"
         }
     }
     
@@ -150,8 +150,8 @@ public enum ImageScaleMode: String, CaseIterable, Identifiable, Codable {
     
     public var title: String {
         switch self {
-        case .fill: return "Заполнение"
-        case .fit: return "Целиком"
+        case .fill: return "Fill Screen"
+        case .fit: return "Fit Screen"
         }
     }
     
@@ -355,7 +355,7 @@ public class AnimeGenViewModel: ObservableObject {
         if isNSFWEnabled {
             isNSFWEnabled = false
             UserDefaults.standard.set(false, forKey: "is_nsfw_enabled_v1")
-            showToast("Режим 18+ выключен")
+            showToast("18+ Content Disabled")
             if selectedSource.isNSFW {
                 setSource(.nekosBest)
             }
@@ -374,13 +374,13 @@ public class AnimeGenViewModel: ObservableObject {
         }
         UserDefaults.standard.set(Array(disabledSources), forKey: "disabledSources")
         
-        showToast("Режим 18+ включен 🔥")
+        showToast("18+ Content Enabled 🔥")
         DebugLogger.shared.log(tag: "NSFW", message: "NSFW adult content enabled after 18+ age verification")
     }
     
     public func setSource(_ source: ImageSource) {
         if source == .waifuIm {
-            showToast("Сервер Waifu.im на тех. обслуживании (Cloudflare) ⚠️")
+            showToast("Waifu.im is under maintenance (Cloudflare) ⚠️")
             return
         }
         selectedSource = source
@@ -393,7 +393,7 @@ public class AnimeGenViewModel: ObservableObject {
     public func setOrientationMode(_ mode: OrientationMode) {
         orientationMode = mode
         UserDefaults.standard.set(mode.rawValue, forKey: "orientationMode")
-        showToast("Режим: \(mode.title)")
+        showToast("Mode: \(mode.title)")
         loadNewImage()
     }
     
@@ -401,7 +401,7 @@ public class AnimeGenViewModel: ObservableObject {
         scaleMode = (scaleMode == .fill) ? .fit : .fill
         UserDefaults.standard.set(scaleMode.rawValue, forKey: "imageScaleMode")
         impactFeedback.impactOccurred()
-        showToast(scaleMode == .fill ? "Режим: Заполнение (Fill)" : "Режим: Целиком (Fit)")
+        showToast(scaleMode == .fill ? "Scale: Fill Screen" : "Scale: Fit Screen")
     }
     
     public func toggleSourceEnabled(_ source: ImageSource) {
@@ -432,7 +432,7 @@ public class AnimeGenViewModel: ObservableObject {
     
     public func saveProxySettings() {
         AppNetworkManager.saveProxy(proxyConfig)
-        showToast("Настройки прокси сохранены! 🌐")
+        showToast("Proxy settings saved! 🌐")
         DebugLogger.shared.log(tag: "Proxy", message: "Proxy updated: \(proxyConfig.isEnabled ? "Enabled (\(proxyConfig.host):\(proxyConfig.port))" : "Disabled")")
     }
     
@@ -505,7 +505,7 @@ public class AnimeGenViewModel: ObservableObject {
                 DebugLogger.shared.log(tag: "Fetch", message: "Failed \(actualSource.displayName) after \(duration)ms: \(errDesc)", isError: true, details: "\(error)")
                 
                 self.failedSource = actualSource
-                self.errorMessage = "Сервер \(actualSource.displayName) временно недоступен или отклонил запрос."
+                self.errorMessage = "Server \(actualSource.displayName) is temporarily unavailable or rejected the request."
                 self.isLoading = false
             }
         }
@@ -514,7 +514,7 @@ public class AnimeGenViewModel: ObservableObject {
     public func handleImageDownloadError(for item: AnimeArtItem, error: Error) {
         DebugLogger.shared.log(tag: "ImageCDN", message: "Failed to download image: \(error.localizedDescription)", isError: true, details: item.imageURL.absoluteString)
         self.failedSource = item.source
-        self.errorMessage = "Не удалось загрузить изображение с сервера \(item.source.displayName). CDN временно недоступен."
+        self.errorMessage = "Failed to load image from \(item.source.displayName). CDN is temporarily unavailable."
     }
     
     public func goPrevious() {
@@ -550,12 +550,12 @@ public class AnimeGenViewModel: ObservableObject {
         if let idx = favorites.firstIndex(where: { $0.imageURL == current.imageURL }) {
             favorites.remove(at: idx)
             saveFavorites()
-            showToast("Удалено из избранного")
+            showToast("Removed from favorites")
         } else {
             favorites.append(current)
             saveFavorites()
             notificationFeedback.notificationOccurred(.success)
-            showToast("Добавлено в избранное! ❤️")
+            showToast("Added to favorites! ❤️")
         }
     }
     
@@ -651,7 +651,7 @@ public class AnimeGenViewModel: ObservableObject {
         ImageCache.default.clearMemoryCache()
         ImageCache.default.clearDiskCache {
             DispatchQueue.main.async {
-                self.showToast("Кэш изображений очищен! 🧹")
+                self.showToast("Image cache cleared! 🧹")
                 DebugLogger.shared.log(tag: "Cache", message: "Disk and memory image cache cleared")
             }
         }
@@ -1068,11 +1068,11 @@ struct ModernContentView: View {
             }
             
             VStack(spacing: 6) {
-                Text("Источник не отвечает")
+                Text("Source Not Responding")
                     .font(.system(size: 17, weight: .bold, design: .rounded))
                     .foregroundColor(Color(UIColor.label))
                 
-                Text("Сервер \(source.displayName) временно недоступен или отклонил соединение.")
+                Text("Server \(source.displayName) is temporarily unreachable or timed out.")
                     .font(.system(size: 13, weight: .regular, design: .rounded))
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
@@ -1085,7 +1085,7 @@ struct ModernContentView: View {
                 }) {
                     HStack(spacing: 6) {
                         Image(systemName: "square.grid.2x2.fill")
-                        Text("Выбрать другой источник")
+                        Text("Select Another Source")
                     }
                     .font(.system(size: 14, weight: .semibold, design: .rounded))
                     .foregroundColor(.white)
@@ -1107,7 +1107,7 @@ struct ModernContentView: View {
                 }) {
                     HStack(spacing: 6) {
                         Image(systemName: "arrow.clockwise")
-                        Text("Повторить попытку")
+                        Text("Try Again")
                     }
                     .font(.system(size: 13, weight: .medium, design: .rounded))
                     .foregroundColor(Color(UIColor.label))
@@ -1124,7 +1124,7 @@ struct ModernContentView: View {
                 }) {
                     HStack(spacing: 4) {
                         Image(systemName: "ladybug")
-                        Text("Посмотреть логи отладки")
+                        Text("View Debug Logs")
                     }
                     .font(.system(size: 11, weight: .medium, design: .rounded))
                     .foregroundColor(.secondary)
@@ -1269,9 +1269,9 @@ struct AppMenuSheet: View {
     var body: some View {
         NavigationView {
             List {
-                Section(header: Text("Коллекция")) {
+                Section(header: Text("Collection")) {
                     NavigationLink(destination: GalleryView(
-                        title: "Избранное",
+                        title: "Favorites",
                         items: viewModel.favorites,
                         onSelect: { item in
                             viewModel.currentItem = item
@@ -1282,7 +1282,7 @@ struct AppMenuSheet: View {
                     )) {
                         Label {
                             HStack {
-                                Text("Избранное")
+                                Text("Favorites")
                                 Spacer()
                                 Text("\(viewModel.favorites.count)")
                                     .font(.subheadline.bold())
@@ -1294,7 +1294,7 @@ struct AppMenuSheet: View {
                     }
                     
                     NavigationLink(destination: GalleryView(
-                        title: "История сессии",
+                        title: "Session History",
                         items: viewModel.history,
                         onSelect: { item in
                             viewModel.currentItem = item
@@ -1305,7 +1305,7 @@ struct AppMenuSheet: View {
                     )) {
                         Label {
                             HStack {
-                                Text("История сессии")
+                                Text("Session History")
                                 Spacer()
                                 Text("\(viewModel.history.count)")
                                     .font(.subheadline.bold())
@@ -1317,8 +1317,8 @@ struct AppMenuSheet: View {
                     }
                 }
                 
-                Section(header: Text("Отображение и масштаб")) {
-                    Picker("Ориентация артов", selection: $viewModel.orientationMode) {
+                Section(header: Text("Display & Aspect Ratio")) {
+                    Picker("Art Orientation", selection: $viewModel.orientationMode) {
                         ForEach(OrientationMode.allCases) { mode in
                             Label(mode.title, systemImage: mode.iconName).tag(mode)
                         }
@@ -1328,7 +1328,7 @@ struct AppMenuSheet: View {
                         viewModel.setOrientationMode(newMode)
                     }
                     
-                    Picker("Масштаб картинки", selection: $viewModel.scaleMode) {
+                    Picker("Image Scaling", selection: $viewModel.scaleMode) {
                         ForEach(ImageScaleMode.allCases) { scale in
                             Label(scale.title, systemImage: scale.iconName).tag(scale)
                         }
@@ -1339,27 +1339,27 @@ struct AppMenuSheet: View {
                     }
                 }
                 
-                Section(header: Text("Настройки источников & Сети")) {
+                Section(header: Text("Sources & Network")) {
                     NavigationLink(destination: SourceManagerView(viewModel: viewModel)) {
-                        Label("Управление источниками & Добавление", systemImage: "slider.horizontal.3")
+                        Label("Source Management & Custom APIs", systemImage: "slider.horizontal.3")
                     }
                     
                     NavigationLink(destination: ProxySettingsView(viewModel: viewModel)) {
-                        Label("Настройки Прокси (Proxy + Auth)", systemImage: "network")
+                        Label("Proxy Settings (HTTP / SOCKS5)", systemImage: "network")
                     }
                 }
                 
-                Section(header: Text("Контент 18+ (NSFW)").foregroundColor(.red)) {
+                Section(header: Text("Adult Content (NSFW)").foregroundColor(.red)) {
                     Toggle(isOn: Binding(
                         get: { viewModel.isNSFWEnabled },
                         set: { _ in viewModel.requestToggleNSFW() }
                     )) {
                         Label {
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("Разрешить контент 18+ (NSFW)")
+                                Text("Enable 18+ Content (NSFW)")
                                     .fontWeight(.semibold)
                                     .foregroundColor(viewModel.isNSFWEnabled ? .red : Color(UIColor.label))
-                                Text(viewModel.isNSFWEnabled ? "Источники 18+ разблокированы 🔥" : "Разблокирует источники контента для взрослых (18+)")
+                                Text(viewModel.isNSFWEnabled ? "18+ Sources Unlocked 🔥" : "Unlocks adult content sources (18+)")
                                     .font(.caption2)
                                     .foregroundColor(.secondary)
                             }
@@ -1370,32 +1370,32 @@ struct AppMenuSheet: View {
                     }
                 }
                 
-                Section(header: Text("Отладка и сервис")) {
+                Section(header: Text("Diagnostics & Tools")) {
                     NavigationLink(destination: DebugConsoleView(viewModel: viewModel, logger: DebugLogger.shared)) {
-                        Label("Консоль отладки & Пинг (v3.1)", systemImage: "ladybug.fill")
+                        Label("Debug Console & Ping (v3.1)", systemImage: "ladybug.fill")
                     }
                     
                     Button(action: {
                         viewModel.clearCache()
                     }) {
-                        Label("Очистить кэш картинок", systemImage: "trash")
+                        Label("Clear Image Cache", systemImage: "trash")
                             .foregroundColor(.orange)
                     }
                 }
             }
-            .navigationTitle("Меню AnimeGen")
+            .navigationTitle("AnimeGen Menu")
             .navigationBarTitleDisplayMode(.inline)
-            .alert("Подтверждение возраста (18+)", isPresented: $viewModel.showAgeVerificationAlert) {
-                Button("Мне есть 18 лет", role: .none) {
+            .alert("Age Verification (18+)", isPresented: $viewModel.showAgeVerificationAlert) {
+                Button("I am 18 or older", role: .none) {
                     viewModel.confirmAgeVerification()
                 }
-                Button("Отмена", role: .cancel) {}
+                Button("Cancel", role: .cancel) {}
             } message: {
-                Text("Вам уже исполнилось 18 лет? Включение этого режима разблокирует NSFW категории и источники контента для взрослых.")
+                Text("Are you at least 18 years old? Enabling this mode unlocks adult (NSFW) artwork and sources.")
             }
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Готово") {
+                    Button("Done") {
                         dismiss()
                     }
                 }
@@ -1416,22 +1416,22 @@ struct SourceManagerView: View {
     
     var body: some View {
         List {
-            Section(header: Text("Инструкция по подключению API")) {
+            Section(header: Text("Custom API Guide")) {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("💡 Как добавить свой источник:")
+                    Text("💡 How to connect a custom source:")
                         .font(.system(size: 13, weight: .bold))
                         .foregroundColor(.pink)
                     
-                    Text("1. Введите название источника (например: Safebooru или Danbooru).\n2. Укажите URL JSON-эндпоинта, который возвращает картинку.\n3. Укажите JSON-ключ, в котором лежит ссылка на изображение (обычно `url`, `file_url`, `message` или `link`).")
+                    Text("1. Enter the source name (e.g. Safebooru or Danbooru).\n2. Provide the JSON endpoint URL that returns an image.\n3. Specify the JSON key path containing the image URL (e.g. `url`, `file_url`, `message`, or `link`).")
                         .font(.system(size: 11))
                         .foregroundColor(.secondary)
                     
                     Divider().padding(.vertical, 2)
                     
-                    Text("Примеры популярных эндпоинтов:")
+                    Text("Popular Endpoint Examples:")
                         .font(.system(size: 11, weight: .bold))
                     
-                    Text("• Safebooru: `https://safebooru.org/index.php?page=dapi&s=post&q=index&json=1&tags=rating:safe+score:>50&limit=1` (ключ: `file_url`)\n• Nekos API: `https://api.nekosapi.com/v4/images/random?rating=safe` (ключ: `url`)")
+                    Text("• Safebooru: `https://safebooru.org/index.php?page=dapi&s=post&q=index&json=1&tags=rating:safe+score:>50&limit=1` (key: `file_url`)\n• Nekos API: `https://api.nekosapi.com/v4/images/random?rating=safe` (key: `url`)")
                         .font(.system(size: 10, design: .monospaced))
                         .foregroundColor(.secondary)
                 }
@@ -1439,7 +1439,7 @@ struct SourceManagerView: View {
             }
             
             let sfwSources = ImageSource.allCases.filter { $0 != .random && !$0.isNSFW && $0 != .waifuIm }
-            Section(header: Text("Встроенные источники (SFW)")) {
+            Section(header: Text("Built-in Sources (SFW)")) {
                 ForEach(sfwSources) { source in
                     HStack {
                         Image(systemName: source.iconName)
@@ -1470,9 +1470,9 @@ struct SourceManagerView: View {
                     VStack(alignment: .leading) {
                         HStack {
                             Text("Waifu.im").font(.headline).foregroundColor(.secondary)
-                            Text("Тех. работы ⚠️").font(.caption2.bold()).foregroundColor(.orange)
+                            Text("Maintenance ⚠️").font(.caption2.bold()).foregroundColor(.orange)
                         }
-                        Text("Временно отключен на техобслуживание (Cloudflare)").font(.caption).foregroundColor(.secondary)
+                        Text("Temporarily disabled for maintenance (Cloudflare)").font(.caption).foregroundColor(.secondary)
                     }
                     
                     Spacer()
@@ -1488,7 +1488,7 @@ struct SourceManagerView: View {
                 let nsfwSources = ImageSource.allCases.filter { $0 != .random && $0.isNSFW }
                 Section(header: HStack {
                     Image(systemName: "flame.fill").foregroundColor(.red)
-                    Text("Источники 18+ (NSFW)").foregroundColor(.red).fontWeight(.bold)
+                    Text("18+ Sources (NSFW)").foregroundColor(.red).fontWeight(.bold)
                 }) {
                     ForEach(nsfwSources) { source in
                         HStack {
@@ -1516,9 +1516,9 @@ struct SourceManagerView: View {
                 }
             }
             
-            Section(header: Text("Кастомные JSON API источники")) {
+            Section(header: Text("Custom JSON API Sources")) {
                 if viewModel.customSources.isEmpty {
-                    Text("Нет добавленных источников. Нажмите «Добавить свой», чтобы подключить любой аниме API.")
+                    Text("No custom sources added yet. Tap \"Add Custom Source\" to connect any anime image API.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 } else {
@@ -1535,32 +1535,32 @@ struct SourceManagerView: View {
                 }
                 
                 Button(action: { showAddSheet = true }) {
-                    Label("Добавить свой источник (JSON API)", systemImage: "plus.circle.fill")
+                    Label("Add Custom Source (JSON API)", systemImage: "plus.circle.fill")
                         .foregroundColor(.pink)
                 }
             }
         }
-        .navigationTitle("Управление источниками")
+        .navigationTitle("Source Manager")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showAddSheet) {
             NavigationView {
                 Form {
-                    Section(header: Text("Параметры API")) {
-                        TextField("Название (например: Safebooru)", text: $newName)
+                    Section(header: Text("API Parameters")) {
+                        TextField("Name (e.g. Safebooru)", text: $newName)
                         TextField("URL (https://.../api/random)", text: $newURL)
                             .autocapitalization(.none)
                             .keyboardType(.URL)
-                        TextField("JSON ключ картинки (например: url, file_url)", text: $newKeyPath)
+                        TextField("JSON Image Key (e.g. url, file_url)", text: $newKeyPath)
                             .autocapitalization(.none)
                     }
                 }
-                .navigationTitle("Новый источник")
+                .navigationTitle("New Source")
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
-                        Button("Отмена") { showAddSheet = false }
+                        Button("Cancel") { showAddSheet = false }
                     }
                     ToolbarItem(placement: .confirmationAction) {
-                        Button("Сохранить") {
+                        Button("Save") {
                             if !newName.isEmpty && !newURL.isEmpty {
                                 viewModel.customSources.append(
                                     CustomSourceItem(name: newName, endpointURL: newURL, jsonKeyPath: newKeyPath)
@@ -1596,12 +1596,12 @@ struct ProxySettingsView: View {
     
     var body: some View {
         Form {
-            Section(header: Text("Состояние Прокси")) {
-                Toggle("Включить Прокси", isOn: $isEnabled)
+            Section(header: Text("Proxy Status")) {
+                Toggle("Enable Proxy", isOn: $isEnabled)
                     .onChange(of: isEnabled) { _ in saveCurrentProxy() }
                 
                 if isEnabled {
-                    Picker("Протокол", selection: $isSOCKS) {
+                    Picker("Protocol", selection: $isSOCKS) {
                         Text("HTTP / HTTPS").tag(false)
                         Text("SOCKS5").tag(true)
                     }
@@ -1611,31 +1611,31 @@ struct ProxySettingsView: View {
             }
             
             if isEnabled {
-                Section(header: Text("Параметры подключения")) {
-                    TextField("Хост / IP (например: 88.216.19.98)", text: $proxyHost)
+                Section(header: Text("Connection Settings")) {
+                    TextField("Host / IP (e.g. 192.168.1.1)", text: $proxyHost)
                         .autocapitalization(.none)
                         .disableAutocorrection(true)
                         .onChange(of: proxyHost) { _ in saveCurrentProxy() }
                     
-                    TextField("Порт (например: 19441 или 8080)", text: $proxyPort)
+                    TextField("Port (e.g. 8080 or 1080)", text: $proxyPort)
                         .keyboardType(.numberPad)
                         .onChange(of: proxyPort) { _ in saveCurrentProxy() }
                 }
                 
-                Section(header: Text("Авторизация (Опционально)")) {
-                    TextField("Логин (Username)", text: $username)
+                Section(header: Text("Authentication (Optional)")) {
+                    TextField("Username", text: $username)
                         .autocapitalization(.none)
                         .disableAutocorrection(true)
                         .onChange(of: username) { _ in saveCurrentProxy() }
                     
                     HStack {
                         if showPassword {
-                            TextField("Пароль (Password)", text: $password)
+                            TextField("Password", text: $password)
                                 .autocapitalization(.none)
                                 .disableAutocorrection(true)
                                 .onChange(of: password) { _ in saveCurrentProxy() }
                         } else {
-                            SecureField("Пароль (Password)", text: $password)
+                            SecureField("Password", text: $password)
                                 .onChange(of: password) { _ in saveCurrentProxy() }
                         }
                         
@@ -1646,18 +1646,18 @@ struct ProxySettingsView: View {
                     }
                 }
                 
-                Section(header: Text("Проверка подключения")) {
+                Section(header: Text("Connection Test")) {
                     Button(action: runProxyTest) {
                         HStack {
                             if isTesting {
                                 ProgressView()
                                     .scaleEffect(0.9)
                                     .padding(.trailing, 4)
-                                Text("Проверка соединения...")
+                                Text("Testing connection...")
                             } else {
                                 Image(systemName: "bolt.horizontal.circle.fill")
                                     .foregroundColor(.pink)
-                                Text("Проверить прокси (Ping & IP)")
+                                Text("Test Proxy (Ping & IP)")
                                     .fontWeight(.semibold)
                             }
                         }
@@ -1677,13 +1677,13 @@ struct ProxySettingsView: View {
                 }
             }
             
-            Section(header: Text("Информация")) {
-                Text("Прокси перенаправляет все сетевые запросы приложения и загрузку изображений через защищенный сервер.")
+            Section(header: Text("Information")) {
+                Text("Proxy routes all network requests and image downloads through a secure server.")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
         }
-        .navigationTitle("Настройки Прокси")
+        .navigationTitle("Proxy Settings")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             let current = viewModel.proxyConfig
@@ -1731,13 +1731,13 @@ struct ProxySettingsView: View {
                 await MainActor.run {
                     self.isTesting = false
                     self.testIsSuccess = true
-                    self.testStatus = "🟢 Прокси активен! Задержка: \(Int(result.latency))ms, Внешний IP: \(result.ip)"
+                    self.testStatus = "🟢 Proxy active! Latency: \(Int(result.latency))ms, Public IP: \(result.ip)"
                 }
             } catch {
                 await MainActor.run {
                     self.isTesting = false
                     self.testIsSuccess = false
-                    self.testStatus = "🔴 Ошибка: \(error.localizedDescription)"
+                    self.testStatus = "🔴 Error: \(error.localizedDescription)"
                 }
             }
         }
@@ -1754,14 +1754,14 @@ struct SourcePickerSheet: View {
         NavigationView {
             List {
                 let sfwSources = ImageSource.allCases.filter { !$0.isNSFW && $0 != .waifuIm && viewModel.isSourceEnabled($0) }
-                Section(header: Text("Стандартные источники (SFW)").font(.caption)) {
+                Section(header: Text("Standard Sources (SFW)").font(.caption)) {
                     ForEach(sfwSources) { source in
                         sourceRow(for: source)
                     }
                     
                     // Waifu.im in maintenance
                     Button(action: {
-                        viewModel.showToast("Сервер Waifu.im на тех. обслуживании (Cloudflare защита) ⚠️")
+                        viewModel.showToast("Waifu.im is under maintenance (Cloudflare protection) ⚠️")
                     }) {
                         HStack(spacing: 14) {
                             ZStack {
@@ -1779,7 +1779,7 @@ struct SourcePickerSheet: View {
                                         .font(.system(size: 15, weight: .semibold, design: .rounded))
                                         .foregroundColor(.secondary)
                                     
-                                    Text("Тех. работы ⚠️")
+                                    Text("Maintenance ⚠️")
                                         .font(.system(size: 9, weight: .bold, design: .rounded))
                                         .padding(.horizontal, 6)
                                         .padding(.vertical, 2)
@@ -1787,7 +1787,7 @@ struct SourcePickerSheet: View {
                                         .foregroundColor(.orange)
                                 }
                                 
-                                Text("Временно отключен на техобслуживание (Cloudflare)")
+                                Text("Temporarily disabled for maintenance (Cloudflare)")
                                     .font(.system(size: 12))
                                     .foregroundColor(.secondary)
                             }
@@ -1807,7 +1807,7 @@ struct SourcePickerSheet: View {
                     let nsfwSources = ImageSource.allCases.filter { $0.isNSFW && viewModel.isSourceEnabled($0) }
                     Section(header: HStack {
                         Image(systemName: "flame.fill").foregroundColor(.red)
-                        Text("Источники 18+ (NSFW)").font(.caption).foregroundColor(.red).fontWeight(.bold)
+                        Text("18+ Sources (NSFW)").font(.caption).foregroundColor(.red).fontWeight(.bold)
                     }) {
                         ForEach(nsfwSources) { source in
                             sourceRow(for: source)
@@ -1815,11 +1815,11 @@ struct SourcePickerSheet: View {
                     }
                 }
             }
-            .navigationTitle("Источники")
+            .navigationTitle("Sources")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Готово") { dismiss() }
+                    Button("Done") { dismiss() }
                 }
             }
         }
@@ -1892,7 +1892,7 @@ struct GalleryView: View {
                     Image(systemName: "photo.on.rectangle.angled")
                         .font(.system(size: 48))
                         .foregroundColor(.secondary)
-                    Text("Пока нет сохраненных артов")
+                    Text("No saved art yet")
                         .font(.system(size: 16, weight: .medium, design: .rounded))
                         .foregroundColor(.secondary)
                 }
@@ -1963,7 +1963,7 @@ struct DebugConsoleView: View {
                     Button(action: pingAllSources) {
                         HStack(spacing: 4) {
                             Image(systemName: isPinging ? "waveform.path.ecg" : "bolt.horizontal.fill")
-                            Text(isPinging ? "Тест..." : "Тест API")
+                            Text(isPinging ? "Testing..." : "Test APIs")
                         }
                         .font(.system(size: 11, weight: .bold))
                         .padding(.horizontal, 9)
@@ -1980,7 +1980,7 @@ struct DebugConsoleView: View {
                             } else {
                                 Image(systemName: "square.and.arrow.up.fill")
                             }
-                            Text(isSharingPastebin ? "Отправка..." : "Поделиться (Pastebin)")
+                            Text(isSharingPastebin ? "Uploading..." : "Share (Pastebin)")
                         }
                         .font(.system(size: 11, weight: .bold))
                         .padding(.horizontal, 9)
@@ -1994,7 +1994,7 @@ struct DebugConsoleView: View {
                     
                     Button(action: {
                         UIPasteboard.general.string = logger.allLogsFormatted
-                        viewModel.showToast("Логи скопированы! 📋")
+                        viewModel.showToast("Logs copied! 📋")
                     }) {
                         Image(systemName: "doc.on.doc.fill")
                             .font(.system(size: 12))
@@ -2021,7 +2021,7 @@ struct DebugConsoleView: View {
                 }
                 
                 Toggle(isOn: $filterErrorsOnly) {
-                    Text("Показывать только ошибки")
+                    Text("Show errors only")
                         .font(.system(size: 12, weight: .medium))
                         .foregroundColor(.secondary)
                 }
@@ -2033,7 +2033,7 @@ struct DebugConsoleView: View {
             // Ping Results List
             if !pingResults.isEmpty {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Статус источников:")
+                    Text("Source Status:")
                         .font(.system(size: 11, weight: .bold))
                         .foregroundColor(.secondary)
                     
@@ -2065,7 +2065,7 @@ struct DebugConsoleView: View {
                     Image(systemName: "terminal")
                         .font(.system(size: 36))
                         .foregroundColor(.secondary)
-                    Text("Нет записанных логов")
+                    Text("No debug logs recorded")
                         .font(.system(size: 14, weight: .medium))
                         .foregroundColor(.secondary)
                     Spacer()
@@ -2106,7 +2106,7 @@ struct DebugConsoleView: View {
                 .listStyle(.plain)
             }
         }
-        .navigationTitle("Консоль отладки")
+        .navigationTitle("Debug Console")
         .navigationBarTitleDisplayMode(.inline)
     }
     
@@ -2135,7 +2135,7 @@ struct DebugConsoleView: View {
                     await MainActor.run {
                         self.isSharingPastebin = false
                         UIPasteboard.general.string = rawURL
-                        viewModel.showToast("Ссылка создана и скопирована! 🔗")
+                        viewModel.showToast("Link created and copied! 🔗")
                         presentShareSheet(items: [rawURL, pasteURL])
                     }
                     return
@@ -2145,7 +2145,7 @@ struct DebugConsoleView: View {
                 await MainActor.run {
                     self.isSharingPastebin = false
                     UIPasteboard.general.string = logContent
-                    viewModel.showToast("Логи скопированы в буфер (ошибка сети)")
+                    viewModel.showToast("Logs copied to clipboard (network error)")
                     presentShareSheet(items: [logContent])
                 }
             }
