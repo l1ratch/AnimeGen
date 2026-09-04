@@ -254,8 +254,10 @@ public class DebugLogger: ObservableObject {
     
     public var allLogsFormatted: String {
         let device = UIDevice.current
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "3.1.0"
+        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "21"
         var text = "=== AnimeGen Debug Log ===\n"
-        text += "App Version: 3.1.0-beta.8 (Build 9)\n"
+        text += "App Version: \(version) (Build \(build))\n"
         text += "iOS: \(device.systemName) \(device.systemVersion)\n"
         text += "Device: \(device.model)\n"
         text += "Total Logs: \(logs.count)\n"
@@ -1382,6 +1384,12 @@ struct AppMenuSheet: View {
                             .foregroundColor(.orange)
                     }
                 }
+                
+                Section(header: Text("About & Project")) {
+                    NavigationLink(destination: CreditsView()) {
+                        Label("Authors & Credits", systemImage: "person.2.fill")
+                    }
+                }
             }
             .navigationTitle("AnimeGen Menu")
             .navigationBarTitleDisplayMode(.inline)
@@ -1401,6 +1409,178 @@ struct AppMenuSheet: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - Authors & Credits View
+
+struct CreditsView: View {
+    private var appVersion: String {
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "3.1.0"
+        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "21"
+        return "v\(version) (Build \(build))"
+    }
+    
+    var body: some View {
+        List {
+            // App Branding Header
+            Section {
+                VStack(spacing: 8) {
+                    Image(systemName: "sparkles.tv.fill")
+                        .font(.system(size: 44, weight: .bold))
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [Color.pink, Color.purple],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .padding(.top, 4)
+                    
+                    Text("AnimeGen")
+                        .font(.system(size: 22, weight: .bold, design: .rounded))
+                    
+                    Text(appVersion)
+                        .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(Color(UIColor.secondarySystemBackground), in: Capsule())
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+            }
+            .listRowBackground(Color.clear)
+            
+            // Authors Section
+            Section(header: Text("Authors & Maintainers")) {
+                Link(destination: URL(string: "https://github.com/cranci1")!) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "person.crop.circle.fill")
+                            .font(.system(size: 22))
+                            .foregroundColor(.pink)
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("cranci")
+                                .font(.headline)
+                                .foregroundColor(Color(UIColor.label))
+                            Text("Original creator & maintainer (v1.x / v2.x)")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        Spacer()
+                        
+                        Image(systemName: "arrow.up.right")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(.secondary)
+                    }
+                }
+                
+                Link(destination: URL(string: "https://github.com/l1ratch")!) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "person.badge.shield.checkmark.fill")
+                            .font(.system(size: 22))
+                            .foregroundColor(.purple)
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("l1ratch")
+                                .font(.headline)
+                                .foregroundColor(Color(UIColor.label))
+                            Text("v3.x SwiftUI rewrite, Custom APIs, Proxy & NSFW")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        Spacer()
+                        
+                        Image(systemName: "arrow.up.right")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+            
+            // GitHub Repositories Section
+            Section(header: Text("Source Code & Repositories")) {
+                Link(destination: URL(string: "https://github.com/cranci1/AnimeGen")!) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "curlybraces.square.fill")
+                            .font(.system(size: 20))
+                            .foregroundColor(.blue)
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Original Repository")
+                                .font(.subheadline.bold())
+                                .foregroundColor(Color(UIColor.label))
+                            Text("github.com/cranci1/AnimeGen")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        Spacer()
+                        
+                        Image(systemName: "arrow.up.right")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(.secondary)
+                    }
+                }
+                
+                Link(destination: URL(string: "https://github.com/l1ratch/AnimeGen")!) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "arrow.triangle.branch")
+                            .font(.system(size: 20))
+                            .foregroundColor(.orange)
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Fork Repository (v3 Modernized)")
+                                .font(.subheadline.bold())
+                                .foregroundColor(Color(UIColor.label))
+                            Text("github.com/l1ratch/AnimeGen")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        Spacer()
+                        
+                        Image(systemName: "arrow.up.right")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+            
+            // License & Credits Section
+            Section(header: Text("License & Third-Party")) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("GNU General Public License v3.0 (GPLv3)")
+                        .font(.subheadline.bold())
+                    Text("AnimeGen is free and open-source software. You are free to modify, redistribute, and contribute under the terms of the GPLv3 license.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .padding(.vertical, 2)
+                
+                Link(destination: URL(string: "https://github.com/onevcat/Kingfisher")!) {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Kingfisher")
+                                .font(.subheadline.bold())
+                                .foregroundColor(Color(UIColor.label))
+                            Text("Image caching & animated GIF rendering (MIT)")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: "arrow.up.right")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+        }
+        .navigationTitle("Authors & Credits")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
