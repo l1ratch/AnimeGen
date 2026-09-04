@@ -1464,7 +1464,7 @@ struct CreditsView: View {
                             Text("cranci")
                                 .font(.headline)
                                 .foregroundColor(Color(UIColor.label))
-                            Text("Original creator & maintainer (v1.x / v2.x)")
+                            Text("Original creator & maintainer (v1.0 – v3.0)")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
@@ -1487,7 +1487,7 @@ struct CreditsView: View {
                             Text("l1ratch")
                                 .font(.headline)
                                 .foregroundColor(Color(UIColor.label))
-                            Text("v3.x SwiftUI rewrite, Custom APIs, Proxy & NSFW")
+                            Text("v3.1 modernization (SwiftUI, Custom APIs, Proxy & NSFW)")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
@@ -1533,7 +1533,7 @@ struct CreditsView: View {
                             .foregroundColor(.orange)
                         
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Fork Repository (v3 Modernized)")
+                            Text("Fork Repository (v3.1 Modernized)")
                                 .font(.subheadline.bold())
                                 .foregroundColor(Color(UIColor.label))
                             Text("github.com/l1ratch/AnimeGen")

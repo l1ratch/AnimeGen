@@ -88,8 +88,8 @@ Special thanks to all the developers and communities providing these public APIs
 
 ## 👥 Authors & Credits
 
-- **[cranci](https://github.com/cranci1)** — Original creator and project maintainer (v1.x / v2.x).
-- **[l1ratch](https://github.com/l1ratch)** — Modernized v3.x rewrite (SwiftUI architecture, Custom JSON API engine, Proxy & SOCKS5 support, NSFW mode, 60 FPS GIF renderer).
+- **[cranci](https://github.com/cranci1)** — Original creator and project maintainer (v1.0 – v3.0).
+- **[l1ratch](https://github.com/l1ratch)** — Modernized v3.1 rewrite (SwiftUI architecture, Custom JSON API engine, Proxy & SOCKS5 support, NSFW mode, 60 FPS GIF renderer).
 
 ### Third-Party Dependencies
 - **[Kingfisher](https://github.com/onevcat/Kingfisher)** — Used for asynchronous image downloading, caching, and animated GIF decoding (MIT License).
@@ -100,7 +100,7 @@ Special thanks to all the developers and communities providing these public APIs
 
 ```text
 Copyright © 2023-2025 cranci
-Copyright © 2026 l1ratch (v3.0+ contributions)
+Copyright © 2026 l1ratch (v3.1 contributions)
 
 AnimeGen is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
