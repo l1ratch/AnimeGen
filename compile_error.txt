@@ -1,0 +1,107 @@
+=== COMPILER ERRORS ===
+==> Preparing build directory...
+==> Resolving Swift package dependencies...
+Command line invocation:
+    /Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild -resolvePackageDependencies -project /Users/runner/work/AnimeGen/AnimeGen/AnimeGen.xcodeproj
+
+Resolve Package Graph
+
+Fetching from https://github.com/onevcat/Kingfisher.git
+
+Creating working copy of package ‘Kingfisher’
+
+Checking out 7.9.1 of package ‘Kingfisher’
+
+
+Resolved source packages:
+  Kingfisher: https://github.com/onevcat/Kingfisher.git @ 7.9.1
+
+resolved source packages: Kingfisher
+==> Building AnimeGen with xcodebuild...
+Command line invocation:
+    /Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild -project /Users/runner/work/AnimeGen/AnimeGen/AnimeGen.xcodeproj -scheme AnimeGen -configuration Release -derivedDataPath /Users/runner/work/AnimeGen/AnimeGen/build/DerivedDataApp -destination generic/platform=iOS build CODE_SIGN_IDENTITY= CODE_SIGNING_REQUIRED=NO CODE_SIGN_ENTITLEMENTS= CODE_SIGNING_ALLOWED=NO
+
+Build settings from command line:
+    CODE_SIGN_ENTITLEMENTS = 
+    CODE_SIGN_IDENTITY = 
+    CODE_SIGNING_ALLOWED = NO
+    CODE_SIGNING_REQUIRED = NO
+
+Resolve Package Graph
+
+Fetching from https://github.com/onevcat/Kingfisher.git (cached)
+
+Creating working copy of package ‘Kingfisher’
+
+Checking out 7.9.1 of package ‘Kingfisher’
+
+
+Resolved source packages:
+  Kingfisher: https://github.com/onevcat/Kingfisher.git @ 7.9.1
+
+note: Using codesigning identity override: 
+ComputePackagePrebuildTargetDependencyGraph
+
+Prepare packages
+
+CreateBuildRequest
+
+SendProjectDescription
+
+CreateBuildOperation
+
+ComputeTargetDependencyGraph
+note: Building targets in dependency order
+note: Target dependency graph (3 targets)
+    Target 'AnimeGen' in project 'AnimeGen'
+        ➜ Explicit dependency on target 'Kingfisher' in project 'Kingfisher'
+    Target 'Kingfisher' in project 'Kingfisher'
+        ➜ Explicit dependency on target 'Kingfisher' in project 'Kingfisher'
+    Target 'Kingfisher' in project 'Kingfisher' (no dependencies)
+
+GatherProvisioningInputs
+
+CreateBuildDescription
+
+ExecuteExternalTool /Applications/Xcode_26.6.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc --version
+
+ExecuteExternalTool /Applications/Xcode_26.6.app/Contents/Developer/usr/bin/actool --print-asset-tag-combinations --output-format xml1 /Users/runner/work/AnimeGen/AnimeGen/AnimeGen/Assets.xcassets
+
+ExecuteExternalTool /Applications/Xcode_26.6.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -v -E -dM -isysroot /Applications/Xcode_26.6.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.5.sdk -x c -c /dev/null
+
+ExecuteExternalTool /Applications/Xcode_26.6.app/Contents/Developer/usr/bin/ibtool --version --output-format xml1
+
+ExecuteExternalTool /Applications/Xcode_26.6.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ld -version_details
+
+ExecuteExternalTool /Applications/Xcode_26.6.app/Contents/Developer/usr/bin/actool --version --output-format xml1
+
+Build description signature: d1348651c2662204813da8e694dbe0fd
+Build description path: /Users/runner/work/AnimeGen/AnimeGen/build/DerivedDataApp/Build/Intermediates.noindex/XCBuildData/d1348651c2662204813da8e694dbe0fd.xcbuilddata
+error: failed to read asset tags: The command `(cd /Users/runner/work/AnimeGen/AnimeGen && /Applications/Xcode_26.6.app/Contents/Developer/usr/bin/actool --print-asset-tag-combinations --output-format xml1 /Users/runner/work/AnimeGen/AnimeGen/AnimeGen/Assets.xcassets)` exited with status 1. The command's standard output was:
+
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>com.apple.actool.asset-tag-combinations</key>
+	<array/>
+	<key>com.apple.actool.errors</key>
+	<array>
+		<dict>
+			<key>debug-description</key>
+			<string>Unescaped control character around line 2, column 15.</string>
+			<key>description</key>
+			<string>The data couldn’t be read because it isn’t in the correct format.</string>
+			<key>failure-reason</key>
+			<string>The data is not in the correct format.</string>
+		</dict>
+	</array>
+</dict>
+</plist>
+ (in target 'AnimeGen' from project 'AnimeGen')
+** BUILD FAILED **
+
+
+The following build commands failed:
+	Building project AnimeGen with scheme AnimeGen and configuration Release
+(1 failure)
