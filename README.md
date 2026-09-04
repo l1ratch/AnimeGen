@@ -2,20 +2,22 @@
 
 <div align="center">
 
-[![Build and Release IPA](https://github.com/cranci1/AnimeGen/actions/workflows/build%20copy.yml/badge.svg)](https://github.com/cranci1/AnimeGen/actions/workflows/build%20copy.yml)
+[![Build and Release IPA](https://github.com/l1ratch/AnimeGen/actions/workflows/build%20copy.yml/badge.svg)](https://github.com/l1ratch/AnimeGen/actions/workflows/build%20copy.yml)
 [![Platform](https://img.shields.io/badge/Platform-iOS%20%7C%20iPadOS%2016.0%2B-orange?logo=apple&logoColor=white)](https://img.shields.io/badge/Platform-iOS%20%7C%20iPadOS%2016.0%2B-red?logo=apple&logoColor=white)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Swift](https://img.shields.io/badge/Swift-5.0%20%7C%20SwiftUI-F05138?logo=swift&logoColor=white)](https://swift.org)
 
 </div>
 
-# AnimeGen
+# AnimeGen (v3.1 Modernized)
 
-**AnimeGen** is a modern, fast, and feature-packed iOS & iPadOS application to discover, generate, view, and save high-resolution anime art and animated GIFs from public APIs.
+**AnimeGen** is a modern, fast, and feature-packed iOS & iPadOS application to discover, generate, view, and save high-resolution anime art and animated GIFs from public and custom APIs.
+
+> **Note**: This repository is a modernized v3.1 fork of the original [cranci1/AnimeGen](https://github.com/cranci1/AnimeGen), rewritten in SwiftUI with animated GIF rendering, proxy support, custom API engine, and 18+ content filters.
 
 ---
 
-## ✨ Features (v3.0+)
+## ✨ Features (v3.1 Modernized)
 
 - 🎨 **Modern Liquid Glass UI**: Clean SwiftUI interface with dynamic ambient background glow, interactive gestures (swipe navigation, pinch-to-zoom up to 4x, double-tap to favorite).
 - 🎬 **Hardware-Accelerated GIF Support**: Smooth 60 FPS playback for animated reaction GIFs and clips via Kingfisher.
@@ -52,26 +54,40 @@
 
 You can install the compiled `.ipa` using **TrollStore**, **AltStore**, **SideStore**, **LiveContainer**, **Feather**, **Scarlet**, **ESign**, or **Sideloadly**.
 
-- Download the latest IPA build from the [GitHub Actions Artifacts](https://github.com/cranci1/AnimeGen/actions) or Releases tab.
+- Download the latest IPA build from the [GitHub Actions Artifacts](https://github.com/l1ratch/AnimeGen/actions) or Releases tab.
 
 ---
 
-## 📡 Supported APIs
+## 📡 Supported APIs & Sources
 
 Special thanks to all the developers and communities providing these public APIs:
 
-| API | Type | Format | Status |
-| :--- | :---: | :---: | :---: |
-| [nekos.best](https://nekos.best) | SFW | Image / GIF | ✅ Active |
-| [pic.re](https://doc.pic.re/) | SFW | HD Image | ✅ Active |
-| [waifu.pics](https://waifu.pics) | SFW | Animated GIF | ✅ Active |
-| [nekobot.xyz](https://nekobot.xyz/) | SFW & 18+ | Image / GIF | ✅ Active |
-| [nekosapi.com](https://nekosapi.com/) | SFW | HD Image | ✅ Active |
-| [nekos.life](https://waifu.life) | SFW | Image / GIF | ✅ Active |
-| [nekos.moe](https://nekos.moe/) | SFW | Image | ✅ Active |
-| [purrbot.site](https://purrbot.site) | SFW & 18+ | Animated GIF | ✅ Active |
-| [danbooru.donmai.us](https://danbooru.donmai.us) | SFW & 18+ | Image / GIF | ✅ Active |
-| [waifu.im](https://docs.waifu.im/) | SFW | Image | ⚠️ Maintenance |
+### SFW (Safe for Work) Sources
+| API / Source | Content Format | Status | Description |
+| :--- | :---: | :---: | :--- |
+| [nekos.best](https://nekos.best) | Image & Animated GIF | ✅ Active | High-quality artworks & reaction clips with orientation filtering |
+| [pic.re](https://doc.pic.re/) | HD Illustration | ✅ Active | Ultra-high-resolution anime illustrations |
+| [waifu.pics](https://waifu.pics) | Animated GIF | ✅ Active | Reaction GIFs and anime animations |
+| [nekobot.xyz](https://nekobot.xyz/) | Image | ✅ Active | Kemonomimi, anime characters & art |
+| [nekosapi.com](https://nekosapi.com/) | HD Image | ✅ Active | Character database & rich artwork |
+| [nekos.life](https://waifu.life) | Image & GIF | ✅ Active | Classic anime gallery & expressions |
+| [nekos.moe](https://nekos.moe/) | Image | ✅ Active | Community curated anime illustrations |
+| [purrbot.site](https://purrbot.site) | Animated GIF | ✅ Active | SFW anime reaction clips & gifs |
+| [danbooru.donmai.us](https://danbooru.donmai.us) | Image / GIF | ✅ Active | Popular booru image database |
+| [waifu.im](https://docs.waifu.im/) | Image | ⚠️ Maintenance | Cloudflare upstream protection active |
+
+### 🔞 18+ (NSFW) Sources *(Unlocked via Age Verification)*
+| Source | Content Format | Status | Description |
+| :--- | :---: | :---: | :--- |
+| **NekoBot (Hentai)** | HD Image | ✅ Active | Adult anime artworks & illustrations |
+| **NekoBot (NSFW GIF)** | Animated GIF | ✅ Active | 18+ animated GIF animations |
+| **PurrBot (Adult GIF)** | Animated GIF | ✅ Active | 18+ reaction clips & anime GIFs |
+| **Danbooru (R-18)** | Image & GIF | ✅ Active | Explicit R-18 tagged anime artwork |
+
+### 🔌 Custom Sources
+| Source | Content Format | Status | Description |
+| :--- | :---: | :---: | :--- |
+| **Custom JSON API** | Any Image / GIF | 🌟 Custom | Connect any REST API returning JSON with image URLs |
 
 ---
 
@@ -80,7 +96,7 @@ Special thanks to all the developers and communities providing these public APIs
 1. Ensure you have **macOS** with **Xcode 14.0+** installed.
 2. Clone the repository:
    ```bash
-   git clone https://github.com/cranci1/AnimeGen.git
+   git clone https://github.com/l1ratch/AnimeGen.git
    cd AnimeGen
    ```
 3. Build the project using Xcode or the automated shell script:
