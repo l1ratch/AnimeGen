@@ -1425,16 +1425,13 @@ struct CreditsView: View {
         List {
             // App Branding Header
             Section {
-                VStack(spacing: 8) {
-                    Image(systemName: "sparkles.tv.fill")
-                        .font(.system(size: 44, weight: .bold))
-                        .foregroundStyle(
-                            LinearGradient(
-                                colors: [Color.pink, Color.purple],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
+                VStack(spacing: 10) {
+                    Image("AppLogo")
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 72, height: 72)
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .shadow(color: Color.black.opacity(0.15), radius: 8, x: 0, y: 4)
                         .padding(.top, 4)
                     
                     Text("AnimeGen")
