@@ -2,22 +2,20 @@
 
 <div align="center">
 
-[![Build and Release IPA](https://github.com/l1ratch/AnimeGen/actions/workflows/build%20copy.yml/badge.svg)](https://github.com/l1ratch/AnimeGen/actions/workflows/build%20copy.yml)
+[![Build and Release IPA](https://github.com/cranci1/AnimeGen/actions/workflows/build%20copy.yml/badge.svg)](https://github.com/cranci1/AnimeGen/actions/workflows/build%20copy.yml)
 [![Platform](https://img.shields.io/badge/Platform-iOS%20%7C%20iPadOS%2016.0%2B-orange?logo=apple&logoColor=white)](https://img.shields.io/badge/Platform-iOS%20%7C%20iPadOS%2016.0%2B-red?logo=apple&logoColor=white)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Swift](https://img.shields.io/badge/Swift-5.0%20%7C%20SwiftUI-F05138?logo=swift&logoColor=white)](https://swift.org)
 
 </div>
 
-# AnimeGen (v3.1 Modernized)
+# AnimeGen (v3.1)
 
 **AnimeGen** is a modern, fast, and feature-packed iOS & iPadOS application to discover, generate, view, and save high-resolution anime art and animated GIFs from public and custom APIs.
 
-> **Note**: This repository is a modernized v3.1 fork of the original [cranci1/AnimeGen](https://github.com/cranci1/AnimeGen), rewritten in SwiftUI with animated GIF rendering, proxy support, custom API engine, and 18+ content filters.
-
 ---
 
-## ✨ Features (v3.1 Modernized)
+## ✨ Features (v3.1)
 
 - 🎨 **Modern Liquid Glass UI**: Clean SwiftUI interface with dynamic ambient background glow, interactive gestures (swipe navigation, pinch-to-zoom up to 4x, double-tap to favorite).
 - 🎬 **Hardware-Accelerated GIF Support**: Smooth 60 FPS playback for animated reaction GIFs and clips via Kingfisher.
@@ -54,7 +52,7 @@
 
 You can install the compiled `.ipa` using **TrollStore**, **AltStore**, **SideStore**, **LiveContainer**, **Feather**, **Scarlet**, **ESign**, or **Sideloadly**.
 
-- Download the latest IPA build from the [GitHub Actions Artifacts](https://github.com/l1ratch/AnimeGen/actions) or Releases tab.
+- Download the latest IPA build from the [GitHub Actions Artifacts](https://github.com/cranci1/AnimeGen/actions) or Releases tab.
 
 ---
 
@@ -96,7 +94,7 @@ Special thanks to all the developers and communities providing these public APIs
 1. Ensure you have **macOS** with **Xcode 14.0+** installed.
 2. Clone the repository:
    ```bash
-   git clone https://github.com/l1ratch/AnimeGen.git
+   git clone https://github.com/cranci1/AnimeGen.git
    cd AnimeGen
    ```
 3. Build the project using Xcode or the automated shell script:
