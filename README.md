@@ -2,7 +2,7 @@
 
 <div align="center">
 
-[![Build and Release IPA](https://github.com/l1ratch/AnimeGen/actions/workflows/build%20copy.yml/badge.svg)](https://github.com/l1ratch/AnimeGen/actions/workflows/build%20copy.yml)
+[![Build and Release IPA](https://github.com/l1ratch/AnimeGen/actions/workflows/build.yml/badge.svg)](https://github.com/l1ratch/AnimeGen/actions/workflows/build.yml)
 [![Platform](https://img.shields.io/badge/Platform-iOS%20%7C%20iPadOS%2016.0%2B-orange?logo=apple&logoColor=white)](https://img.shields.io/badge/Platform-iOS%20%7C%20iPadOS%2016.0%2B-red?logo=apple&logoColor=white)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Swift](https://img.shields.io/badge/Swift-5.0%20%7C%20SwiftUI-F05138?logo=swift&logoColor=white)](https://swift.org)
