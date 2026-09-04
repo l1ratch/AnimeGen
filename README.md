@@ -38,7 +38,13 @@
 
 ## 📸 Screenshots
 
-*(Screenshots coming soon)*
+<div align="center">
+
+| Modern HD Canvas | Collection & Display | Sources, NSFW & Credits |
+| :---: | :---: | :---: |
+| <img src="Images/Screenshots/main_canvas.png" width="260" /> | <img src="Images/Screenshots/menu_collection.png" width="260" /> | <img src="Images/Screenshots/menu_settings.png" width="260" /> |
+
+</div>
 
 ---
 
