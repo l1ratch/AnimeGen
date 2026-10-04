@@ -3,21 +3,19 @@
 <div align="center">
 
 [![Build and Release IPA](https://github.com/l1ratch/AnimeGen/actions/workflows/build.yml/badge.svg)](https://github.com/l1ratch/AnimeGen/actions/workflows/build.yml)
-[![Platform](https://img.shields.io/badge/Platform-iOS%20%7C%20iPadOS%2016.0%2B-orange?logo=apple&logoColor=white)](https://img.shields.io/badge/Platform-iOS%20%7C%20iPadOS%2016.0%2B-red?logo=apple&logoColor=white)
+[![Platform](https://img.shields.io/badge/Platform-iOS%20%7C%20iPadOS%2015.0%2B-orange?logo=apple&logoColor=white)](https://img.shields.io/badge/Platform-iOS%20%7C%20iPadOS%2015.0%2B-red?logo=apple&logoColor=white)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Swift](https://img.shields.io/badge/Swift-5.0%20%7C%20SwiftUI-F05138?logo=swift&logoColor=white)](https://swift.org)
 
 </div>
 
-# AnimeGen (v3.1 Modernized)
+# AnimeGen (v3.1)
 
 **AnimeGen** is a modern, fast, and feature-packed iOS & iPadOS application to discover, generate, view, and save high-resolution anime art and animated GIFs from public and custom APIs.
 
-> **Note**: This repository is a modernized v3.1 fork of the original [cranci1/AnimeGen](https://github.com/cranci1/AnimeGen), rewritten in SwiftUI with animated GIF rendering, proxy support, custom API engine, and 18+ content filters.
-
 ---
 
-## ✨ Features (v3.1 Modernized)
+## ✨ Features (v3.1)
 
 - 🎨 **Modern Liquid Glass UI**: Clean SwiftUI interface with dynamic ambient background glow, interactive gestures (swipe navigation, pinch-to-zoom up to 4x, double-tap to favorite).
 - 🎬 **Hardware-Accelerated GIF Support**: Smooth 60 FPS playback for animated reaction GIFs and clips via Kingfisher.
@@ -29,10 +27,7 @@
   - Full support for **HTTP, HTTPS, and SOCKS5** proxies.
   - Optional username & password authentication.
   - Live connection diagnostic tool (measures ping latency and resolves external IP).
-- 🔞 **Optional 18+ (NSFW) Content Mode**:
-  - Securely hidden by default with an age verification prompt (18+).
-  - Unlocks Danbooru R-18, NekoBot Hentai, and PurrBot Adult GIFs.
-- ❤️ **Favorites & Session History**: Save favorite artworks persistently to local storage and browse through your current session history with a grid gallery.
+- ❤️ **Favorites & Session History**: Save favorite artworks persistently to local storage and browse through your current session history with a uniform grid gallery.
 - 💾 **Photos & GIF Export**: Save high-res images and animated GIF files directly to your iOS Photos library or share via the native iOS Share Sheet.
 - 🐞 **Debug Console & Diagnostics**: Built-in terminal with live API health checks (ping tests) and one-tap anonymous log sharing via Pastebin.
 
@@ -42,7 +37,7 @@
 
 <div align="center">
 
-| Modern HD Canvas | Collection & Display | Sources, NSFW & Credits |
+| Modern HD Canvas | Collection & Display | Sources & Credits |
 | :---: | :---: | :---: |
 | <img src="Images/Screenshots/main_canvas.png" width="260" /> | <img src="Images/Screenshots/menu_collection.png" width="260" /> | <img src="Images/Screenshots/menu_settings.png" width="260" /> |
 
@@ -62,7 +57,7 @@ You can install the compiled `.ipa` using **TrollStore**, **AltStore**, **SideSt
 
 Special thanks to all the developers and communities providing these public APIs:
 
-### SFW (Safe for Work) Sources
+### Built-in Public APIs
 | API / Source | Content Format | Status | Description |
 | :--- | :---: | :---: | :--- |
 | [nekos.best](https://nekos.best) | Image & Animated GIF | ✅ Active | High-quality artworks & reaction clips with orientation filtering |
@@ -73,16 +68,7 @@ Special thanks to all the developers and communities providing these public APIs
 | [nekos.life](https://waifu.life) | Image & GIF | ✅ Active | Classic anime gallery & expressions |
 | [nekos.moe](https://nekos.moe/) | Image | ✅ Active | Community curated anime illustrations |
 | [purrbot.site](https://purrbot.site) | Animated GIF | ✅ Active | SFW anime reaction clips & gifs |
-| [danbooru.donmai.us](https://danbooru.donmai.us) | Image / GIF | ✅ Active | Popular booru image database |
 | [waifu.im](https://docs.waifu.im/) | Image | ⚠️ Maintenance | Cloudflare upstream protection active |
-
-### 🔞 18+ (NSFW) Sources *(Unlocked via Age Verification)*
-| Source | Content Format | Status | Description |
-| :--- | :---: | :---: | :--- |
-| **NekoBot (Hentai)** | HD Image | ✅ Active | Adult anime artworks & illustrations |
-| **NekoBot (NSFW GIF)** | Animated GIF | ✅ Active | 18+ animated GIF animations |
-| **PurrBot (Adult GIF)** | Animated GIF | ✅ Active | 18+ reaction clips & anime GIFs |
-| **Danbooru (R-18)** | Image & GIF | ✅ Active | Explicit R-18 tagged anime artwork |
 
 ### 🔌 Custom Sources
 | Source | Content Format | Status | Description |
@@ -111,7 +97,7 @@ Special thanks to all the developers and communities providing these public APIs
 ## 👥 Authors & Credits
 
 - **[cranci](https://github.com/cranci1)** — Original creator and project maintainer (v1.0 – v3.0).
-- **[l1ratch](https://github.com/l1ratch)** — Modernized v3.1 rewrite (SwiftUI architecture, Custom JSON API engine, Proxy & SOCKS5 support, NSFW mode, 60 FPS GIF renderer).
+- **[l1ratch](https://github.com/l1ratch)** — Modernized v3.1 rewrite (SwiftUI architecture, Custom JSON API engine, Proxy & SOCKS5 support, 60 FPS GIF renderer).
 
 ### Third-Party Dependencies
 - **[Kingfisher](https://github.com/onevcat/Kingfisher)** — Used for asynchronous image downloading, caching, and animated GIF decoding (MIT License).
