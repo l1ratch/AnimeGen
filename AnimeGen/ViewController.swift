@@ -726,21 +726,12 @@ struct ModernContentView: View {
                 HStack(spacing: 6) {
                     Image(systemName: viewModel.selectedSource.iconName)
                         .font(.system(size: 13, weight: .bold))
-                        .foregroundColor(viewModel.selectedSource.isNSFW ? .red : .pink)
+                        .foregroundColor(.pink)
                     
                     Text(viewModel.selectedSource.displayName)
                         .font(.system(size: 13, weight: .semibold, design: .rounded))
-                        .foregroundColor(viewModel.selectedSource.isNSFW ? .red : Color(UIColor.label))
+                        .foregroundColor(Color(UIColor.label))
                         .lineLimit(1)
-                    
-                    if viewModel.selectedSource.isNSFW {
-                        Text("18+")
-                            .font(.system(size: 9, weight: .heavy, design: .rounded))
-                            .padding(.horizontal, 4)
-                            .padding(.vertical, 1)
-                            .background(Color.red.opacity(0.2), in: Capsule())
-                            .foregroundColor(.red)
-                    }
                     
                     Image(systemName: "chevron.down")
                         .font(.system(size: 9, weight: .bold))
@@ -750,7 +741,7 @@ struct ModernContentView: View {
                 .padding(.vertical, 7)
                 .background(.ultraThinMaterial, in: Capsule())
                 .overlay(
-                    Capsule().stroke(viewModel.selectedSource.isNSFW ? Color.red.opacity(0.5) : Color(UIColor.separator).opacity(0.35), lineWidth: 1)
+                    Capsule().stroke(Color(UIColor.separator).opacity(0.35), lineWidth: 1)
                 )
                 .shadow(color: Color.black.opacity(0.08), radius: 6, x: 0, y: 3)
             }
@@ -1277,27 +1268,6 @@ struct AppMenuSheet: View {
                     }
                 }
                 
-                Section(header: Text("Adult Content (NSFW)").foregroundColor(.red)) {
-                    Toggle(isOn: Binding(
-                        get: { viewModel.isNSFWEnabled },
-                        set: { _ in viewModel.requestToggleNSFW() }
-                    )) {
-                        Label {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Enable 18+ Content (NSFW)")
-                                    .fontWeight(.semibold)
-                                    .foregroundColor(viewModel.isNSFWEnabled ? .red : Color(UIColor.label))
-                                Text(viewModel.isNSFWEnabled ? "18+ Sources Unlocked 🔥" : "Unlocks adult content sources (18+)")
-                                    .font(.caption2)
-                                    .foregroundColor(.secondary)
-                            }
-                        } icon: {
-                            Image(systemName: "flame.fill")
-                                .foregroundColor(viewModel.isNSFWEnabled ? .red : .gray)
-                        }
-                    }
-                }
-                
                 Section(header: Text("Diagnostics & Tools")) {
                     NavigationLink(destination: DebugConsoleView(viewModel: viewModel, logger: DebugLogger.shared)) {
                         Label("Debug Console & Ping (v3.1)", systemImage: "ladybug.fill")
@@ -1533,9 +1503,9 @@ struct SourceManagerView: View {
                 .padding(.vertical, 4)
             }
             
-            let sfwSources = ImageSource.allCases.filter { $0 != .random && !$0.isNSFW && $0 != .waifuIm }
-            Section(header: Text("Built-in Sources (SFW)")) {
-                ForEach(sfwSources) { source in
+            let availableSources = ImageSource.allCases.filter { $0 != .random && $0 != .waifuIm }
+            Section(header: Text("Built-in Sources")) {
+                ForEach(availableSources) { source in
                     HStack {
                         Image(systemName: source.iconName)
                             .foregroundColor(.pink)
@@ -1577,38 +1547,6 @@ struct SourceManagerView: View {
                         .disabled(true)
                 }
                 .opacity(0.6)
-            }
-            
-            if viewModel.isNSFWEnabled {
-                let nsfwSources = ImageSource.allCases.filter { $0 != .random && $0.isNSFW }
-                Section(header: HStack {
-                    Image(systemName: "flame.fill").foregroundColor(.red)
-                    Text("18+ Sources (NSFW)").foregroundColor(.red).fontWeight(.bold)
-                }) {
-                    ForEach(nsfwSources) { source in
-                        HStack {
-                            Image(systemName: source.iconName)
-                                .foregroundColor(.red)
-                                .frame(width: 24)
-                            
-                            VStack(alignment: .leading) {
-                                HStack {
-                                    Text(source.displayName).font(.headline)
-                                    Text(source.tag).font(.caption2.bold()).foregroundColor(.red)
-                                }
-                                Text(source.description).font(.caption).foregroundColor(.secondary)
-                            }
-                            
-                            Spacer()
-                            
-                            Toggle("", isOn: Binding(
-                                get: { viewModel.isSourceEnabled(source) },
-                                set: { _ in viewModel.toggleSourceEnabled(source) }
-                            ))
-                            .labelsHidden()
-                        }
-                    }
-                }
             }
             
             Section(header: Text("Custom JSON API Sources")) {
@@ -1848,9 +1786,9 @@ struct SourcePickerSheet: View {
     var body: some View {
         NavigationView {
             List {
-                let sfwSources = ImageSource.allCases.filter { !$0.isNSFW && $0 != .waifuIm && viewModel.isSourceEnabled($0) }
-                Section(header: Text("Standard Sources (SFW)").font(.caption)) {
-                    ForEach(sfwSources) { source in
+                let availableSources = ImageSource.allCases.filter { $0 != .random && $0 != .waifuIm && viewModel.isSourceEnabled($0) }
+                Section(header: Text("Standard Sources").font(.caption)) {
+                    ForEach(availableSources) { source in
                         sourceRow(for: source)
                     }
                     
